@@ -1,0 +1,55 @@
+
+[functions.assign-user-role]
+enabled = true
+verify_jwt = true
+import_map = "./functions/assign-user-role/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/assign-user-role/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/assign-user-role/*.html" ]
+
+[functions.get-all-users]
+enabled = true
+verify_jwt = true
+import_map = "./functions/get-all-users/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/get-all-users/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/get-all-users/*.html" ]
+
+[functions.get-role-audit-log]
+enabled = true
+verify_jwt = true
+import_map = "./functions/get-role-audit-log/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/get-role-audit-log/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/get-role-audit-log/*.html" ]
+
+[functions.debug-auth-check]
+enabled = true
+verify_jwt = true
+import_map = "./functions/debug-auth-check/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/debug-auth-check/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/debug-auth-check/*.html" ]
+
+[functions.setup-storage-policies]
+enabled = true
+verify_jwt = true
+import_map = "./functions/setup-storage-policies/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/setup-storage-policies/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/setup-storage-policies/*.html" ]

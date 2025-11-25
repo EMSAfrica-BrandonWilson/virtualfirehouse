@@ -1,0 +1,1591 @@
+import React, { useState, useEffect } from 'react';
+import styled from 'styled-components';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { supabase } from '../../../lib/supabase';
+import { StaffOptionsModal } from '../../../components/UI/StaffOptionsModal';
+import { 
+  getCurrentLocalDate, 
+  getStartOfDay, 
+  daysBetween, 
+  formatDateOnly 
+} from '../../../lib/utils';
+
+const MainContent = styled.main`
+  margin: 10px;
+  font-family: 'Segoe UI Variable Display', 'Poppins', Arial, sans-serif;
+  font-size: 112.5%;
+`;
+
+const Section = styled.section`
+  margin-bottom: 2rem;
+`;
+
+const FlexRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+`;
+
+const Column = styled.div<{ $width?: string }>`
+  width: ${props => props.$width || '48%'};
+  vertical-align: top;
+  text-align: left;
+  
+  @media (max-width: 768px) {
+    width: 100% !important;
+  }
+`;
+
+const ImageColumn = styled.div`
+  width: 240px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  
+  @media (max-width: 768px) {
+    width: 100% !important;
+    justify-content: center;
+    margin-top: 20px;
+  }
+`;
+
+const Title = styled.h1`
+  font-size: 2.2rem;
+  color: #FF9900;
+  font-weight: bold;
+  margin-bottom: 10px;
+`;
+
+const Divider = styled.hr`
+  width: 100%;
+  border: 5px solid #FF9900;
+  border-radius: 3px;
+  margin: 15px 0;
+`;
+
+const Paragraph = styled.p`
+  font-size: 125%;
+  letter-spacing: 1.25px;
+  line-height: 25px;
+  text-align: justify;
+  margin-bottom: 15px;
+`;
+
+const HeaderImage = styled.img`
+  width: 224px;
+  height: auto;
+  max-width: 224px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+`;
+
+const FormSection = styled.div`
+  margin-bottom: 3rem;
+  padding: 20px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #fafafa;
+`;
+
+const StaffListSection = styled.div`
+  margin-top: 3rem;
+  padding: 20px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+`;
+
+const ThreeColumnRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 15px;
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+`;
+
+const FieldRow = styled.div`
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 15px;
+  }
+`;
+
+const FieldColumn = styled.div<{ $flex?: string }>`
+  flex: ${props => props.$flex || '1'};
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+`;
+
+const FormContainer = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 15px;
+`;
+
+const Label = styled.label`
+  font-weight: 600;
+  color: #1177BB;
+  font-size: 14px;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const UpdateOptionsLink = styled.a`
+  font-size: 12px;
+  color: #FF9900;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: normal;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+const Input = styled.input<{ $hasError?: boolean }>`
+  padding: 10px 12px;
+  border: 2px solid ${props => props.$hasError ? '#e74c3c' : '#e0e0e0'};
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.3s ease;
+  
+  &:focus {
+    outline: none;
+    border-color: ${props => props.$hasError ? '#e74c3c' : '#1177BB'};
+    box-shadow: 0 0 0 3px ${props => props.$hasError ? 'rgba(231, 76, 60, 0.1)' : 'rgba(17, 119, 187, 0.1)'};
+  }
+`;
+
+const Select = styled.select<{ $hasError?: boolean }>`
+  padding: 10px 12px;
+  border: 2px solid ${props => props.$hasError ? '#e74c3c' : '#e0e0e0'};
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: white;
+  transition: border-color 0.3s ease;
+  
+  &:focus {
+    outline: none;
+    border-color: ${props => props.$hasError ? '#e74c3c' : '#1177BB'};
+    box-shadow: 0 0 0 3px ${props => props.$hasError ? 'rgba(231, 76, 60, 0.1)' : 'rgba(17, 119, 187, 0.1)'};
+  }
+`;
+
+const TextArea = styled.textarea<{ $hasError?: boolean }>`
+  padding: 10px 12px;
+  border: 2px solid ${props => props.$hasError ? '#e74c3c' : '#e0e0e0'};
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.3s ease;
+  min-height: 80px;
+  resize: vertical;
+  
+  &:focus {
+    outline: none;
+    border-color: ${props => props.$hasError ? '#e74c3c' : '#1177BB'};
+    box-shadow: 0 0 0 3px ${props => props.$hasError ? 'rgba(231, 76, 60, 0.1)' : 'rgba(17, 119, 187, 0.1)'};
+  }
+`;
+
+const FileInput = styled.input`
+  padding: 8px;
+  border: 2px dashed #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: #f9f9f9;
+  cursor: pointer;
+  transition: border-color 0.3s ease;
+  
+  &:hover {
+    border-color: #1177BB;
+    background-color: #f0f7ff;
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: #1177BB;
+    box-shadow: 0 0 0 3px rgba(17, 119, 187, 0.1);
+  }
+`;
+
+const SubmitButton = styled.button`
+  background-color: #1177BB;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 10px;
+  
+  &:hover {
+    background-color: #0f5c99;
+  }
+  
+  &:active {
+    transform: translateY(1px);
+  }
+  
+  &:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+`;
+
+const RefreshButton = styled.button`
+  background-color: #28a745;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-left: 10px;
+  
+  &:hover {
+    background-color: #218838;
+  }
+  
+  &:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+`;
+
+const PrintButton = styled.button`
+  background-color: #FF9900;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-left: 10px;
+  
+  &:hover {
+    background-color: #E68A00;
+  }
+  
+  &:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+`;
+
+const ErrorMessage = styled.div`
+  background-color: #fee;
+  color: #c33;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #fcc;
+  margin-bottom: 15px;
+  font-size: 14px;
+`;
+
+const SuccessMessage = styled.div`
+  background-color: #efe;
+  color: #363;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #cfc;
+  margin-bottom: 15px;
+  font-size: 14px;
+`;
+
+const StaffTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+  
+  th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  th {
+    background-color: #1177BB;
+    color: white;
+    font-weight: 600;
+  }
+  
+  tr:hover {
+    background-color: #f5f5f5;
+  }
+`;
+
+const SubTitle = styled.h2`
+  font-size: 1.5rem;
+  color: #1177BB;
+  font-weight: bold;
+  margin-bottom: 15px;
+`;
+
+const EditButton = styled.button`
+  background-color: #ffc107;
+  color: #212529;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-right: 5px;
+  
+  &:hover {
+    background-color: #e0a800;
+  }
+`;
+
+const DeleteButton = styled.button`
+  background-color: #dc3545;
+  color: white;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  
+  &:hover {
+    background-color: #c82333;
+  }
+  
+  &:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+`;
+
+const CancelButton = styled.button`
+  background-color: #6c757d;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 10px;
+  margin-left: 10px;
+  
+  &:hover {
+    background-color: #5a6268;
+  }
+`;
+
+
+
+const ExpiryWarningInput = styled(Input)<{ $expiry?: 'warning' | 'expired' | 'valid' }>`
+  background-color: ${props => {
+    if (props.$expiry === 'expired') return '#ffebee';
+    if (props.$expiry === 'warning') return '#fff8e1';
+    return 'white';
+  }};
+  border-color: ${props => {
+    if (props.$expiry === 'expired') return '#f44336';
+    if (props.$expiry === 'warning') return '#ff9800';
+    return props.$hasError ? '#e74c3c' : '#e0e0e0';
+  }};
+  
+  &:focus {
+    border-color: ${props => {
+      if (props.$expiry === 'expired') return '#f44336';
+      if (props.$expiry === 'warning') return '#ff9800';
+      return props.$hasError ? '#e74c3c' : '#1177BB';
+    }};
+  }
+`;
+
+const ExpiryStatusMessage = styled.div<{ $type: 'warning' | 'expired' | 'valid' }>`
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 4px;
+  color: ${props => {
+    if (props.$type === 'expired') return '#f44336';
+    if (props.$type === 'warning') return '#ff9800';
+    return '#28a745';
+  }};
+`;
+
+const TableCell = styled.td`
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+  font-size: 14px;
+  vertical-align: top;
+`;
+
+const ExpiryTableCell = styled(TableCell)<{ $expiry?: 'warning' | 'expired' | 'valid' }>`
+  background-color: ${props => {
+    if (props.$expiry === 'expired') return '#ffebee';
+    if (props.$expiry === 'warning') return '#fff8e1';
+    return 'inherit';
+  }};
+  color: ${props => {
+    if (props.$expiry === 'expired') return '#d32f2f';
+    if (props.$expiry === 'warning') return '#f57c00';
+    return 'inherit';
+  }};
+  font-weight: ${props => (props.$expiry === 'expired' || props.$expiry === 'warning') ? '600' : 'normal'};
+`;
+
+interface StaffFormData {
+  departmentId: string;
+  fireStationId: string;
+  staffIdNumber: string;
+  firstName: string;
+  lastName: string;
+  idNumber: string;
+  email: string;
+  phoneNumber: string;
+  address: string;
+  hireDate: string;
+  positionId: string;
+  rankId: string;
+  employmentStatus: string;
+  operationalShiftId: string;
+  certificationDetails: string;
+  certificationExpiry: string;
+  trainingRecords: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContactRelationshipId: string;
+  idIqamaExpiryDate: string;
+  driversLicenseExpiryDate: string;
+  airsideIdExpiryDate: string;
+  airsidePermitExpiryDate: string;
+  staffPicture: File | null;
+}
+
+interface Department {
+  id: number;
+  dept_name: string;
+  dept_picture_url?: string;
+  department_type?: string;
+}
+
+interface Position {
+  id: number;
+  name: string;
+  description: string;
+  active: boolean;
+}
+
+interface Rank {
+  id: string;
+  name: string;
+  code: string;
+  level: number;
+  description: string;
+  is_active: boolean;
+}
+
+interface EmergencyContactRelationship {
+  id: number;
+  name: string;
+  active: boolean;
+}
+
+interface EmploymentStatus {
+  id: number;
+  name: string;
+  description: string;
+  active: boolean;
+}
+
+interface OperationalShift {
+  id: number;
+  name: string;
+  description: string;
+  active: boolean;
+}
+
+interface FireStation {
+  id: number;
+  department_id: number;
+  fire_station_name: string;
+}
+
+
+
+interface StaffMember {
+  id: number;
+  department_id: number;
+  fire_station_id?: number;
+  staff_id: string;
+  first_name: string;
+  last_name: string;
+  id_number: string;
+  email: string;
+  phone_number: string;
+  address: string;
+  hire_date: string;
+  position_id?: number;
+  rank_id?: string;
+  employment_status: string;
+  operational_shift_id?: number;
+  certification_details: string;
+  certification_expiry: string;
+  training_records: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  emergency_contact_relationship_id?: number;
+  id_iqama_expiry_date?: string;
+  drivers_license_expiry_date?: string;
+  airside_id_expiry_date?: string;
+  airside_permit_expiry_date?: string;
+  staff_image_url: string | null;
+  created_at: string;
+  // Populated fields
+  department_name?: string;
+  position_name?: string;
+  rank_name?: string;
+  relationship_name?: string;
+  fire_station_name?: string;
+  operational_shift_name?: string;
+}
+
+interface DropdownOptions {
+  positions: Position[];
+  ranks: Rank[];
+  emergencyContactRelationships: EmergencyContactRelationship[];
+  employmentStatus: EmploymentStatus[];
+  operationalShifts: OperationalShift[];
+  fireStations: FireStation[];
+}
+
+// Utility functions for expiration date calculations
+const getCurrentDate = () => getStartOfDay(getCurrentLocalDate()); // Use timezone-aware current date
+
+const getExpiryStatus = (expiryDate: string | null | undefined): { status: 'warning' | 'expired' | 'valid', message: string } => {
+  if (!expiryDate) return { status: 'valid', message: '' };
+  
+  const today = getCurrentDate();
+  const expiry = getStartOfDay(expiryDate);
+  const diffDays = daysBetween(today, expiry);
+  
+  if (diffDays < 0) {
+    const overdueDays = Math.abs(diffDays);
+    return { 
+      status: 'expired', 
+      message: `Expired ${overdueDays} day${overdueDays === 1 ? '' : 's'} ago` 
+    };
+  } else if (diffDays <= 30) {
+    return { 
+      status: 'warning', 
+      message: `Expires in ${diffDays} day${diffDays === 1 ? '' : 's'}` 
+    };
+  } else {
+    return { status: 'valid', message: '' };
+  }
+};
+
+const formatExpiryDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-';
+  return formatDateOnly(dateString);
+};
+
+export const RegisterStaffEnhanced: React.FC = () => {
+  console.log('RegisterStaffEnhanced component is being rendered!'); // Debug log
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [staffData, setStaffData] = useState<StaffFormData>({
+    departmentId: '',
+    fireStationId: '',
+    staffIdNumber: '',
+    firstName: '',
+    lastName: '',
+    idNumber: '',
+    email: '',
+    phoneNumber: '',
+    address: '',
+    hireDate: '',
+    positionId: '',
+    rankId: '',
+    employmentStatus: '',
+    operationalShiftId: '',
+    certificationDetails: '',
+    certificationExpiry: '',
+    trainingRecords: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    emergencyContactRelationshipId: '',
+    idIqamaExpiryDate: '',
+    driversLicenseExpiryDate: '',
+    airsideIdExpiryDate: '',
+    airsidePermitExpiryDate: '',
+    staffPicture: null
+  });
+
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [dropdownOptions, setDropdownOptions] = useState<DropdownOptions>({
+    positions: [],
+    ranks: [],
+    emergencyContactRelationships: [],
+    employmentStatus: [],
+    operationalShifts: [],
+    fireStations: []
+  });
+
+  
+  const [loading, setLoading] = useState(false);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [dropdownLoading, setDropdownLoading] = useState(false);
+  const [fireStationLoading, setFireStationLoading] = useState(false);
+  const [filteredFireStations, setFilteredFireStations] = useState<FireStation[]>([]);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingStaffId, setEditingStaffId] = useState<number | null>(null);
+
+
+
+  // Load data on component mount
+  useEffect(() => {
+    console.log('useEffect is running - loading data...'); // Debug log
+    loadDepartments();
+    loadDropdownOptions();
+  }, []);
+
+  // Handle edit mode from location state (when navigating from reports page)
+  useEffect(() => {
+    if (location.state?.editStaffData && location.state?.editStaffId) {
+      const member = location.state.editStaffData;
+      setIsEditing(true);
+      setEditingStaffId(location.state.editStaffId);
+      setStaffData({
+        departmentId: member.department_id.toString(),
+        fireStationId: member.fire_station_id?.toString() || '',
+        staffIdNumber: member.staff_id,
+        firstName: member.first_name,
+        lastName: member.last_name,
+        idNumber: member.id_number,
+        email: member.email,
+        phoneNumber: member.phone_number,
+        address: member.address,
+        hireDate: member.hire_date,
+        positionId: member.position_id?.toString() || '',
+        rankId: member.rank_id || '',
+        employmentStatus: member.employment_status,
+        operationalShiftId: member.operational_shift_id?.toString() || '',
+        certificationDetails: member.certification_details,
+        certificationExpiry: member.certification_expiry || '',
+        trainingRecords: member.training_records,
+        emergencyContactName: member.emergency_contact_name,
+        emergencyContactPhone: member.emergency_contact_phone,
+        emergencyContactRelationshipId: member.emergency_contact_relationship_id?.toString() || '',
+        idIqamaExpiryDate: member.id_iqama_expiry_date || '',
+        driversLicenseExpiryDate: member.drivers_license_expiry_date || '',
+        airsideIdExpiryDate: member.airside_id_expiry_date || '',
+        airsidePermitExpiryDate: member.airside_permit_expiry_date || '',
+        staffPicture: null
+      });
+      // Clear the location state to prevent re-triggering
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
+
+  // Load fire stations when department changes
+  useEffect(() => {
+    if (staffData.departmentId) {
+      // Clear current fire station selection when department changes
+      if (staffData.fireStationId) {
+        setStaffData(prev => ({ ...prev, fireStationId: '' }));
+      }
+      loadFireStationsByDepartment(staffData.departmentId);
+    } else {
+      setFilteredFireStations([]);
+    }
+  }, [staffData.departmentId]);
+
+
+
+  const loadDepartments = async () => {
+    setDepartmentsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('get-departments', {
+        method: 'GET'
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Failed to load departments');
+      }
+
+      if (data?.data?.departments) {
+        setDepartments(data.data.departments);
+      }
+    } catch (error: any) {
+      console.error('Error loading departments:', error);
+      setError(error.message || 'Failed to load departments');
+    } finally {
+      setDepartmentsLoading(false);
+    }
+  };
+
+  const loadDropdownOptions = async () => {
+    console.log('Starting to load dropdown options...'); // Debug log
+    setDropdownLoading(true);
+    try {
+      console.log('Calling dropdown-options-crud edge function...'); // Debug log
+      const { data, error } = await supabase.functions.invoke('dropdown-options-crud', {
+        method: 'GET'
+      });
+
+      console.log('Edge function response:', { data, error }); // Debug log
+
+      if (error) {
+        console.error('Edge function error:', error); // Debug log
+        throw new Error(error.message || 'Failed to load dropdown options');
+      }
+
+      console.log('Dropdown options response:', data); // Debug log
+
+      if (data?.data) {
+        // The response is wrapped in data.data structure
+        const options = {
+          positions: data.data.positions || [],
+          ranks: data.data.ranks || [],
+          emergencyContactRelationships: data.data.emergencyContactRelationships || [],
+          employmentStatus: data.data.employmentStatus || [],
+          operationalShifts: data.data.operationalShifts || [],
+          fireStations: [] // Fire stations will be loaded separately based on department
+        };
+        setDropdownOptions(options);
+        console.log('Dropdown options set successfully'); // Debug log
+      } else {
+        console.log('No data received from edge function'); // Debug log
+      }
+    } catch (error: any) {
+      console.error('Error loading dropdown options:', error);
+      setError(error.message || 'Failed to load dropdown options');
+    } finally {
+      console.log('Finished loading dropdown options'); // Debug log
+      setDropdownLoading(false);
+    }
+  };
+
+  // Load fire stations by department
+  const loadFireStationsByDepartment = async (departmentId: string) => {
+    if (!departmentId) {
+      setFilteredFireStations([]);
+      return;
+    }
+
+    console.log('Loading fire stations for department:', departmentId);
+    setFireStationLoading(true);
+    try {
+      // Use direct fetch since we need to pass query parameters for GET request
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      
+      const response = await fetch(
+        `https://yhrecxzygcapozirquzw.supabase.co/functions/v1/fire-stations-by-department?department_id=${departmentId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlocmVjeHp5Z2NhcG96aXJxdXp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg1NDMzMjQsImV4cCI6MjA3NDExOTMyNH0.RelugXX7SEYFzd6OG3U0S49GECJZIMKVyvYhpQ8CvIE'}`,
+            'Content-Type': 'application/json',
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlocmVjeHp5Z2NhcG96aXJxdXp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg1NDMzMjQsImV4cCI6MjA3NDExOTMyNH0.RelugXX7SEYFzd6OG3U0S49GECJZIMKVyvYhpQ8CvIE'
+          }
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error?.message || 'Failed to load fire stations');
+      }
+
+      console.log('Fire stations loaded:', result.fireStations?.length || 0);
+      setFilteredFireStations(result.fireStations || []);
+    } catch (error: any) {
+      console.error('Error loading fire stations:', error);
+      setError(error.message || 'Failed to load fire stations');
+      setFilteredFireStations([]);
+    } finally {
+      setFireStationLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate required fields
+    const requiredFields = ['departmentId', 'fireStationId', 'staffIdNumber', 'firstName', 'lastName'];
+    const errors: Record<string, boolean> = {};
+    let hasErrors = false;
+
+    requiredFields.forEach(field => {
+      if (!staffData[field as keyof StaffFormData]) {
+        errors[field] = true;
+        hasErrors = true;
+      }
+    });
+
+    if (hasErrors) {
+      setFieldErrors(errors);
+      setError('Please fill in all required fields.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      let staffPictureData = null;
+      let fileName = null;
+
+      // Handle file upload if a picture is selected
+      if (staffData.staffPicture) {
+        staffPictureData = await fileToBase64(staffData.staffPicture);
+        fileName = staffData.staffPicture.name;
+      }
+
+      const requestData = {
+        departmentId: parseInt(staffData.departmentId),
+        fireStationId: staffData.fireStationId ? parseInt(staffData.fireStationId) : null,
+        staffIdNumber: staffData.staffIdNumber,
+        firstName: staffData.firstName,
+        lastName: staffData.lastName,
+        idNumber: staffData.idNumber,
+        email: staffData.email,
+        phoneNumber: staffData.phoneNumber,
+        address: staffData.address,
+        hireDate: staffData.hireDate,
+        positionId: staffData.positionId ? parseInt(staffData.positionId) : null,
+        rankId: staffData.rankId || null,
+        employmentStatus: staffData.employmentStatus,
+        operationalShiftId: staffData.operationalShiftId ? parseInt(staffData.operationalShiftId) : null,
+        certificationDetails: staffData.certificationDetails,
+        certificationExpiry: staffData.certificationExpiry,
+        trainingRecords: staffData.trainingRecords,
+        emergencyContactName: staffData.emergencyContactName,
+        emergencyContactPhone: staffData.emergencyContactPhone,
+        emergencyContactRelationshipId: staffData.emergencyContactRelationshipId ? parseInt(staffData.emergencyContactRelationshipId) : null,
+        idIqamaExpiryDate: staffData.idIqamaExpiryDate || null,
+        driversLicenseExpiryDate: staffData.driversLicenseExpiryDate || null,
+        airsideIdExpiryDate: staffData.airsideIdExpiryDate || null,
+        airsidePermitExpiryDate: staffData.airsidePermitExpiryDate || null,
+        staffPictureData,
+        fileName
+      };
+
+      if (isEditing && editingStaffId) {
+        // Update existing staff member
+        const { data, error } = await supabase.functions.invoke('staff-crud-enhanced', {
+          method: 'PUT',
+          body: {
+            staffId: editingStaffId,
+            ...requestData
+          }
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Failed to update staff member');
+        }
+
+        if (data?.data?.success) {
+          setSuccess('Staff member updated successfully!');
+          setIsEditing(false);
+          setEditingStaffId(null);
+        } else {
+          throw new Error(data?.error?.message || 'Update failed');
+        }
+      } else {
+        // Create new staff member
+        const { data, error } = await supabase.functions.invoke('register-staff-enhanced', {
+          body: requestData
+        });
+
+        if (error) {
+          throw new Error(error.message || 'Failed to register staff member');
+        }
+
+        if (data?.data?.success) {
+          setSuccess('Staff member registered successfully!');
+        } else {
+          throw new Error(data?.error?.message || 'Registration failed');
+        }
+      }
+
+      // Reset form but keep department selection
+      const currentDepartmentId = staffData.departmentId;
+      setStaffData({
+        departmentId: currentDepartmentId,
+        fireStationId: '',
+        staffIdNumber: '',
+        firstName: '',
+        lastName: '',
+        idNumber: '',
+        email: '',
+        phoneNumber: '',
+        address: '',
+        hireDate: '',
+        positionId: '',
+        rankId: '',
+        employmentStatus: '',
+        operationalShiftId: '',
+        certificationDetails: '',
+        certificationExpiry: '',
+        trainingRecords: '',
+        emergencyContactName: '',
+        emergencyContactPhone: '',
+        emergencyContactRelationshipId: '',
+        idIqamaExpiryDate: '',
+        driversLicenseExpiryDate: '',
+        airsideIdExpiryDate: '',
+        airsidePermitExpiryDate: '',
+        staffPicture: null
+      });
+      
+      // Reset file input
+      const fileInput = document.getElementById('staffPicture') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+    } catch (error: any) {
+      setError(error.message || 'An error occurred during registration');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper function to convert file to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, files } = e.target as HTMLInputElement;
+    
+    // Clear field error when user starts typing
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({ ...prev, [name]: false }));
+    }
+    
+    setStaffData(prev => ({
+      ...prev,
+      [name]: files && files[0] ? files[0] : value
+    }));
+  };
+
+  const handleRefresh = () => {
+    setStaffData({
+      departmentId: '',
+      fireStationId: '',
+      staffIdNumber: '',
+      firstName: '',
+      lastName: '',
+      idNumber: '',
+      email: '',
+      phoneNumber: '',
+      address: '',
+      hireDate: '',
+      positionId: '',
+      rankId: '',
+      employmentStatus: '',
+      operationalShiftId: '',
+      certificationDetails: '',
+      certificationExpiry: '',
+      trainingRecords: '',
+      emergencyContactName: '',
+      emergencyContactPhone: '',
+      emergencyContactRelationshipId: '',
+      idIqamaExpiryDate: '',
+      driversLicenseExpiryDate: '',
+      airsideIdExpiryDate: '',
+      airsidePermitExpiryDate: '',
+      staffPicture: null
+    });
+    setError('');
+    setSuccess('');
+    setFieldErrors({});
+    setIsEditing(false);
+    setEditingStaffId(null);
+    
+    // Reset file input
+    const fileInput = document.getElementById('staffPicture') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+  };
+
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditingStaffId(null);
+    handleRefresh();
+  };
+
+  const [optionsModalOpen, setOptionsModalOpen] = useState(false);
+  const [optionsModalType, setOptionsModalType] = useState<'positions' | 'ranks' | 'emergency_contact_relationships' | 'employment_status' | 'operational_shifts'>('positions');
+
+  const handleManageDropdowns = (type: string) => {
+    const tabMapping: Record<string, 'positions' | 'ranks' | 'emergency_contact_relationships' | 'employment_status' | 'operational_shifts'> = {
+      'Positions': 'positions',
+      'Ranks': 'ranks',
+      'Emergency Contact Relationships': 'emergency_contact_relationships',
+      'Employment Status': 'employment_status',
+      'Operational Shifts': 'operational_shifts'
+    };
+    const modalType = tabMapping[type] || 'positions';
+    setOptionsModalType(modalType);
+    setOptionsModalOpen(true);
+  };
+
+  return (
+    <MainContent aria-label="Main content">
+      <StaffOptionsModal
+        isOpen={optionsModalOpen}
+        type={optionsModalType}
+        onClose={() => setOptionsModalOpen(false)}
+        onOptionsUpdate={loadDropdownOptions}
+      />
+      {/* Header Section */}
+      <Section aria-labelledby="staff-title">
+        <div style={{ marginTop: '10px' }}>
+          <FlexRow>
+            <Column style={{ flex: '1', minWidth: '0' }}>
+              <Title id="staff-title">
+                Register Your Staff Here
+              </Title>
+              <Divider aria-hidden="true" />
+              <Paragraph>
+                The enhanced Staff Registration system provides comprehensive registration
+                and management of all emergency service personnel with professional dropdown
+                selections for positions, ranks, fire stations, and relationships. This system
+                maintains detailed records of individual qualifications, certifications, training
+                status, and assignment information that support effective workforce management
+                and ensure operational readiness across all emergency service functions.
+              </Paragraph>
+            </Column>
+            <ImageColumn>
+              <HeaderImage src="/images/Staff.png" alt="Register Staff" />
+            </ImageColumn>
+          </FlexRow>
+        </div>
+      </Section>
+
+      {/* Staff Registration Form */}
+      <Section aria-labelledby="staff-registration-form">
+        <FormSection>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <SubTitle id="staff-registration-form">
+              {isEditing ? 'Edit Staff Member' : 'Staff Registration Form'}
+            </SubTitle>
+            <div>
+              {isEditing && (
+                <CancelButton onClick={cancelEdit} type="button">
+                  Cancel Edit
+                </CancelButton>
+              )}
+              <RefreshButton onClick={handleRefresh} type="button">
+                Refresh Form
+              </RefreshButton>
+            </div>
+          </div>
+          
+          {error && <ErrorMessage>{error}</ErrorMessage>}
+          {success && <SuccessMessage>{success}</SuccessMessage>}
+          
+          <FormContainer onSubmit={handleSubmit}>
+            {/* Department and Fire Station Selection */}
+            <FieldRow>
+              <FieldColumn>
+                <Label htmlFor="departmentId">Select Department *</Label>
+                <Select
+                  id="departmentId"
+                  name="departmentId"
+                  value={staffData.departmentId}
+                  onChange={handleInputChange}
+                  required
+                  $hasError={fieldErrors.departmentId}
+                  disabled={departmentsLoading}
+                >
+                  <option value="">{departmentsLoading ? 'Loading departments...' : 'Select a department'}</option>
+                  {departments.map(dept => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.dept_name}
+                    </option>
+                  ))}
+                </Select>
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="fireStationId">
+                  Select Fire Station *
+                </Label>
+                <Select
+                  id="fireStationId"
+                  name="fireStationId"
+                  value={staffData.fireStationId}
+                  onChange={handleInputChange}
+                  required
+                  $hasError={fieldErrors.fireStationId}
+                  disabled={!staffData.departmentId || fireStationLoading}
+                >
+                  <option value="">
+                    {!staffData.departmentId 
+                      ? 'Select a department first' 
+                      : fireStationLoading 
+                        ? 'Loading fire stations...' 
+                        : filteredFireStations.length === 0 
+                          ? 'No fire stations available' 
+                          : 'Select a fire station'}
+                  </option>
+                  {filteredFireStations.map(station => (
+                    <option key={station.id} value={station.id}>
+                      {station.fire_station_name}
+                    </option>
+                  ))}
+                </Select>
+              </FieldColumn>
+            </FieldRow>
+
+            {/* Basic Information */}
+            <ThreeColumnRow>
+              <FieldColumn>
+                <Label htmlFor="staffIdNumber">Staff ID Number *</Label>
+                <Input
+                  type="text"
+                  id="staffIdNumber"
+                  name="staffIdNumber"
+                  value={staffData.staffIdNumber}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="Enter staff ID number"
+                  $hasError={fieldErrors.staffIdNumber}
+                />
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input
+                  type="text"
+                  id="firstName"
+                  name="firstName"
+                  value={staffData.firstName}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="Enter first name"
+                  $hasError={fieldErrors.firstName}
+                />
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input
+                  type="text"
+                  id="lastName"
+                  name="lastName"
+                  value={staffData.lastName}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="Enter last name"
+                  $hasError={fieldErrors.lastName}
+                />
+              </FieldColumn>
+            </ThreeColumnRow>
+            
+            <ThreeColumnRow>
+              <FieldColumn>
+                <Label htmlFor="idNumber">ID/Iqama Number</Label>
+                <Input
+                  type="text"
+                  id="idNumber"
+                  name="idNumber"
+                  value={staffData.idNumber}
+                  onChange={handleInputChange}
+                  placeholder="Enter ID or Iqama number"
+                  $hasError={fieldErrors.idNumber}
+                />
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={staffData.email}
+                  onChange={handleInputChange}
+                  placeholder="Enter email address"
+                  $hasError={fieldErrors.email}
+                />
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="phoneNumber">Phone Number</Label>
+                <Input
+                  type="tel"
+                  id="phoneNumber"
+                  name="phoneNumber"
+                  value={staffData.phoneNumber}
+                  onChange={handleInputChange}
+                  placeholder="Enter phone number"
+                  $hasError={fieldErrors.phoneNumber}
+                />
+              </FieldColumn>
+            </ThreeColumnRow>
+
+            {/* Employment Details with Dropdowns */}
+            <ThreeColumnRow>
+              <FieldColumn>
+                <Label htmlFor="hireDate">Hire Date</Label>
+                <Input
+                  type="date"
+                  id="hireDate"
+                  name="hireDate"
+                  value={staffData.hireDate}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.hireDate}
+                />
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="positionId">
+                  Position
+                  <UpdateOptionsLink onClick={() => handleManageDropdowns('Positions')}>
+                    Update Options
+                  </UpdateOptionsLink>
+                </Label>
+                <Select
+                  id="positionId"
+                  name="positionId"
+                  value={staffData.positionId}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.positionId}
+                  disabled={dropdownLoading}
+                >
+                  <option value="">Select a position (optional)</option>
+                  {dropdownOptions.positions
+                    .filter(pos => pos.active)
+                    .map(position => (
+                    <option key={position.id} value={position.id}>
+                      {position.name}
+                    </option>
+                  ))}
+                </Select>
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="rankId">
+                  Rank
+                  <UpdateOptionsLink onClick={() => handleManageDropdowns('Ranks')}>
+                    Update Options
+                  </UpdateOptionsLink>
+                </Label>
+                <Select
+                  id="rankId"
+                  name="rankId"
+                  value={staffData.rankId}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.rankId}
+                  disabled={dropdownLoading}
+                >
+                  <option value="">Select a rank (optional)</option>
+                  {dropdownOptions.ranks
+                    .filter(rank => rank.is_active)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(rank => (
+                    <option key={rank.id} value={rank.id}>
+                      {rank.name} ({rank.code})
+                    </option>
+                  ))}
+                </Select>
+              </FieldColumn>
+            </ThreeColumnRow>
+
+            <ThreeColumnRow>
+              <FieldColumn>
+                <Label htmlFor="employmentStatus">
+                  Employment Status 
+                  <UpdateOptionsLink onClick={() => handleManageDropdowns('Employment Status')}>
+                    Update Options
+                  </UpdateOptionsLink>
+                </Label>
+                <Select
+                  id="employmentStatus"
+                  name="employmentStatus"
+                  value={staffData.employmentStatus}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.employmentStatus}
+                >
+                  <option value="">Select employment status...</option>
+                  {dropdownOptions.employmentStatus
+                    .filter(status => status.active)
+                    .map(status => (
+                      <option key={status.id} value={status.name}>
+                        {status.name}
+                      </option>
+                    ))}
+                </Select>
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="operationalShiftId">
+                  Operational Shift
+                  <UpdateOptionsLink onClick={() => handleManageDropdowns('Operational Shifts')}>
+                    Update Options
+                  </UpdateOptionsLink>
+                </Label>
+                <Select
+                  id="operationalShiftId"
+                  name="operationalShiftId"
+                  value={staffData.operationalShiftId}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.operationalShiftId}
+                  disabled={dropdownLoading}
+                >
+                  <option value="">Select operational shift (optional)</option>
+                  {dropdownOptions.operationalShifts
+                    .filter(shift => shift.active)
+                    .map(shift => (
+                      <option key={shift.id} value={shift.id}>
+                        {shift.name}
+                      </option>
+                    ))}
+                </Select>
+              </FieldColumn>
+              <FieldColumn>
+                {/* Empty column for layout */}
+              </FieldColumn>
+            </ThreeColumnRow>
+
+            {/* Document Expiry Tracking Section */}
+            <SubTitle style={{ marginTop: '30px', marginBottom: '20px', fontSize: '1.2rem' }}>
+              Document Expiry Tracking
+            </SubTitle>
+            
+            <ThreeColumnRow>
+              <FieldColumn>
+                <Label htmlFor="idIqamaExpiryDate">ID/Iqama Expiry Date</Label>
+                <ExpiryWarningInput
+                  type="date"
+                  id="idIqamaExpiryDate"
+                  name="idIqamaExpiryDate"
+                  value={staffData.idIqamaExpiryDate}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.idIqamaExpiryDate}
+                  $expiry={staffData.idIqamaExpiryDate ? getExpiryStatus(staffData.idIqamaExpiryDate).status : undefined}
+                />
+                {staffData.idIqamaExpiryDate && getExpiryStatus(staffData.idIqamaExpiryDate).message && (
+                  <ExpiryStatusMessage $type={getExpiryStatus(staffData.idIqamaExpiryDate).status}>
+                    {getExpiryStatus(staffData.idIqamaExpiryDate).message}
+                  </ExpiryStatusMessage>
+                )}
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="driversLicenseExpiryDate">Driver's License Expiry Date</Label>
+                <ExpiryWarningInput
+                  type="date"
+                  id="driversLicenseExpiryDate"
+                  name="driversLicenseExpiryDate"
+                  value={staffData.driversLicenseExpiryDate}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.driversLicenseExpiryDate}
+                  $expiry={staffData.driversLicenseExpiryDate ? getExpiryStatus(staffData.driversLicenseExpiryDate).status : undefined}
+                />
+                {staffData.driversLicenseExpiryDate && getExpiryStatus(staffData.driversLicenseExpiryDate).message && (
+                  <ExpiryStatusMessage $type={getExpiryStatus(staffData.driversLicenseExpiryDate).status}>
+                    {getExpiryStatus(staffData.driversLicenseExpiryDate).message}
+                  </ExpiryStatusMessage>
+                )}
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="airsideIdExpiryDate">Airside ID Expiry Date</Label>
+                <ExpiryWarningInput
+                  type="date"
+                  id="airsideIdExpiryDate"
+                  name="airsideIdExpiryDate"
+                  value={staffData.airsideIdExpiryDate}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.airsideIdExpiryDate}
+                  $expiry={staffData.airsideIdExpiryDate ? getExpiryStatus(staffData.airsideIdExpiryDate).status : undefined}
+                />
+                {staffData.airsideIdExpiryDate && getExpiryStatus(staffData.airsideIdExpiryDate).message && (
+                  <ExpiryStatusMessage $type={getExpiryStatus(staffData.airsideIdExpiryDate).status}>
+                    {getExpiryStatus(staffData.airsideIdExpiryDate).message}
+                  </ExpiryStatusMessage>
+                )}
+              </FieldColumn>
+            </ThreeColumnRow>
+
+            <FieldRow>
+              <FieldColumn $flex="1">
+                <Label htmlFor="airsidePermitExpiryDate">Airside Permit Expiry Date</Label>
+                <ExpiryWarningInput
+                  type="date"
+                  id="airsidePermitExpiryDate"
+                  name="airsidePermitExpiryDate"
+                  value={staffData.airsidePermitExpiryDate}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.airsidePermitExpiryDate}
+                  $expiry={staffData.airsidePermitExpiryDate ? getExpiryStatus(staffData.airsidePermitExpiryDate).status : undefined}
+                />
+                {staffData.airsidePermitExpiryDate && getExpiryStatus(staffData.airsidePermitExpiryDate).message && (
+                  <ExpiryStatusMessage $type={getExpiryStatus(staffData.airsidePermitExpiryDate).status}>
+                    {getExpiryStatus(staffData.airsidePermitExpiryDate).message}
+                  </ExpiryStatusMessage>
+                )}
+              </FieldColumn>
+              <FieldColumn $flex="2">
+                {/* Empty space for layout balance */}
+              </FieldColumn>
+            </FieldRow>
+
+            {/* Address */}
+            <FieldRow>
+              <FieldColumn>
+                <Label htmlFor="address">Address</Label>
+                <TextArea
+                  id="address"
+                  name="address"
+                  value={staffData.address}
+                  onChange={handleInputChange}
+                  placeholder="Enter full address"
+                  $hasError={fieldErrors.address}
+                />
+              </FieldColumn>
+            </FieldRow>
+
+            {/* Certification Details */}
+            <FieldRow>
+              <FieldColumn>
+                <Label htmlFor="certificationDetails">Certification Details</Label>
+                <TextArea
+                  id="certificationDetails"
+                  name="certificationDetails"
+                  value={staffData.certificationDetails}
+                  onChange={handleInputChange}
+                  placeholder="Enter certification details, licenses, qualifications"
+                  $hasError={fieldErrors.certificationDetails}
+                />
+              </FieldColumn>
+            </FieldRow>
+
+            {/* Training Records */}
+            <FieldRow>
+              <FieldColumn>
+                <Label htmlFor="trainingRecords">Training Records</Label>
+                <TextArea
+                  id="trainingRecords"
+                  name="trainingRecords"
+                  value={staffData.trainingRecords}
+                  onChange={handleInputChange}
+                  placeholder="Enter training records, courses completed, special skills"
+                  $hasError={fieldErrors.trainingRecords}
+                />
+              </FieldColumn>
+            </FieldRow>
+
+            {/* Emergency Contact Information with Dropdown */}
+            <ThreeColumnRow>
+              <FieldColumn>
+                <Label htmlFor="emergencyContactName">Emergency Contact Name</Label>
+                <Input
+                  type="text"
+                  id="emergencyContactName"
+                  name="emergencyContactName"
+                  value={staffData.emergencyContactName}
+                  onChange={handleInputChange}
+                  placeholder="Enter emergency contact name"
+                  $hasError={fieldErrors.emergencyContactName}
+                />
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="emergencyContactPhone">Emergency Contact Phone</Label>
+                <Input
+                  type="tel"
+                  id="emergencyContactPhone"
+                  name="emergencyContactPhone"
+                  value={staffData.emergencyContactPhone}
+                  onChange={handleInputChange}
+                  placeholder="Enter emergency contact phone"
+                  $hasError={fieldErrors.emergencyContactPhone}
+                />
+              </FieldColumn>
+              <FieldColumn>
+                <Label htmlFor="emergencyContactRelationshipId">
+                  Relationship
+                  <UpdateOptionsLink onClick={() => handleManageDropdowns('Emergency Contact Relationships')}>
+                    Update Options
+                  </UpdateOptionsLink>
+                </Label>
+                <Select
+                  id="emergencyContactRelationshipId"
+                  name="emergencyContactRelationshipId"
+                  value={staffData.emergencyContactRelationshipId}
+                  onChange={handleInputChange}
+                  $hasError={fieldErrors.emergencyContactRelationshipId}
+                  disabled={dropdownLoading}
+                >
+                  <option value="">Select relationship (optional)</option>
+                  {dropdownOptions.emergencyContactRelationships
+                    .filter(rel => rel.active)
+                    .map(relationship => (
+                    <option key={relationship.id} value={relationship.id}>
+                      {relationship.name}
+                    </option>
+                  ))}
+                </Select>
+              </FieldColumn>
+            </ThreeColumnRow>
+            
+            <FieldRow>
+              <FieldColumn>
+                <Label htmlFor="staffPicture">Staff Picture Upload</Label>
+                <FileInput
+                  type="file"
+                  id="staffPicture"
+                  name="staffPicture"
+                  onChange={handleInputChange}
+                  accept="image/*"
+                />
+              </FieldColumn>
+            </FieldRow>
+            
+            <div style={{ marginTop: '20px' }}>
+              <SubmitButton 
+                type="submit" 
+                disabled={loading}
+              >
+                {loading ? (isEditing ? 'Updating...' : 'Registering...') : (isEditing ? 'Update Staff Member' : 'Register Staff Member')}
+              </SubmitButton>
+            </div>
+          </FormContainer>
+        </FormSection>
+      </Section>
+    </MainContent>
+  );
+};

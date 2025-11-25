@@ -1,0 +1,4 @@
+DepartmentName,StationName,EmployeeNumber,NationalIdNumber,FirstName,MiddleName,LastName,DateOfBirth,Gender,Nationality,TelephoneNumber,EmailAddress,EmploymentStartDate,OperationalShiftName,RankName
+EMSA Fire Department,Station 1,EMP-0001,1987654321,John,,Doe,1990-05-12,Male,USA,555-1234,john.doe@example.com,2015-01-01,Blue Shift,Senior Firefighter
+EMSA Fire Department,Station 2,EMP-0002,2987654321,Jane,A,Doe,1992-08-30,Female,Canada,555-5678,jane.doe@example.com,2018-03-15,,Firefighter
+,,EMP-0003,,,,,,,,,,,
