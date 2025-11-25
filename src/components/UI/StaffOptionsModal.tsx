@@ -435,7 +435,6 @@ export const StaffOptionsModal: React.FC<StaffOptionsModalProps> = ({ isOpen, ty
           data: {
             ...(type === 'operational_shifts' ? { shift_name: formData.name.trim() } : { name: formData.name.trim() }),
             description: formData.description.trim(),
-            ...(type === 'ranks' && { code: formData.code?.trim(), level: formData.level }),
             ...(type === 'operational_shifts' && {
               start_time: formData.start_time || null,
               end_time: formData.end_time || null,
@@ -537,8 +536,7 @@ export const StaffOptionsModal: React.FC<StaffOptionsModalProps> = ({ isOpen, ty
             type,
             id,
             data: {
-              active: !currentActive,
-              ...(type === 'ranks' && { is_active: !currentActive })
+              active: !currentActive
             }
           }
         });

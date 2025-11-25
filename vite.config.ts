@@ -22,12 +22,15 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: true,
+      chunkSizeWarningLimit: 1000,
       rollupOptions: {
         output: {
           manualChunks: {
             'pdfjs': ['pdfjs-dist'],
             'xlsx': ['xlsx'],
-            'react-vendor': ['react', 'react-dom', 'react-router-dom']
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'styled': ['styled-components'],
+            'supabase-vendor': ['@supabase/supabase-js']
           }
         }
       }
