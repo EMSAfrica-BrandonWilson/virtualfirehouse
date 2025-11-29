@@ -104,6 +104,7 @@ const AssignmentSection = styled.div`
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   padding: 20px;
+  font-size: 14px;
 `;
 
 const SectionHeader = styled.div`
@@ -201,6 +202,8 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'success' | 'info' |
 const TableContainer = styled.div`
   overflow-x: auto;
   margin-top: 20px;
+  border: 2px solid #1177BB;
+  border-radius: 8px;
 `;
 
 const DataTable = styled.table`
@@ -210,6 +213,10 @@ const DataTable = styled.table`
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+  th, td {
+    font-size: 14px;
+  }
 `;
 
 const TableHeader = styled.th`
@@ -218,7 +225,7 @@ const TableHeader = styled.th`
   padding: 12px;
   text-align: left;
   font-weight: bold;
-  font-size: 1rem;
+  font-size: 14px;
   border-bottom: 2px solid #0e5a8a;
 `;
 

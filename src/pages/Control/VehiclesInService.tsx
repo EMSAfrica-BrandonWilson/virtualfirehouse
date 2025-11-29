@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -148,14 +148,15 @@ const TableHeaderCell = styled.th`
 const TableContainer = styled.div`
   overflow-x: auto;
   margin: 20px 0;
-  border: 2px solid #1177BB;
+  border: 2px solid #4caf50;
   border-radius: 8px;
+  font-size: 14px;
 `;
 
 const StyledTable = styled.table`
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 14px;
 `;
 
 const TableHeader = styled.thead`
@@ -236,6 +237,39 @@ export const VehiclesInService: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'}>({key: 'call_sign', direction: 'asc'});
+
+  const formatDateTime = (iso?: string): string => {
+    if (!iso) return 'N/A';
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return 'N/A';
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const y = d.getFullYear();
+      const m = pad(d.getMonth() + 1);
+      const day = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mm = pad(d.getMinutes());
+      return `${y}-${m}-${day} ${hh}:${mm}`;
+    } catch { return 'N/A'; }
+  };
+
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+    setSortConfig({ key, direction });
+  };
+
+  const sortedVehicles = useMemo(() => {
+    const arr = [...vehicles];
+    const dir = sortConfig.direction === 'asc' ? 1 : -1;
+    const key = sortConfig.key;
+    return arr.sort((a, b) => {
+      const av = (key === 'call_sign' ? (a.call_sign || a.vehicle_number || '') : key === 'vehicle_type' ? (a.vehicle_type || '') : (a.assigned_station || '')).toString().toUpperCase();
+      const bv = (key === 'call_sign' ? (b.call_sign || b.vehicle_number || '') : key === 'vehicle_type' ? (b.vehicle_type || '') : (b.assigned_station || '')).toString().toUpperCase();
+      return av.localeCompare(bv) * dir;
+    });
+  }, [vehicles, sortConfig]);
 
   useEffect(() => {
     loadVehiclesInService();
@@ -275,7 +309,6 @@ export const VehiclesInService: React.FC = () => {
         .from('03_ecc_02_duty_roster_01_station_assignments')
         .select('*')
         .eq('assignment_date', today)
-        .order('station_assignment', { ascending: true })
         .order('call_sign', { ascending: true });
 
       if (allError) {
@@ -284,18 +317,17 @@ export const VehiclesInService: React.FC = () => {
       }
 
       console.log('All assignments loaded:', allAssignments?.length || 0, 'vehicles');
-      // Sort all vehicles by station assignment first, then call sign
+      // Sort all vehicles by call sign only
       const sortedAllVehicles = (allAssignments || []).sort((a, b) => {
-        const stationA = (a.station_assignment || 'Unassigned').toUpperCase();
-        const stationB = (b.station_assignment || 'Unassigned').toUpperCase();
-        const stationComparison = stationA.localeCompare(stationB);
-        if (stationComparison !== 0) return stationComparison;
-        
         const callSignA = (a.call_sign || '').toUpperCase();
         const callSignB = (b.call_sign || '').toUpperCase();
         return callSignA.localeCompare(callSignB);
       });
-      setAllVehicles(sortedAllVehicles);
+      const uniqueAllVehicles = sortedAllVehicles.filter((item, idx, arr) => {
+        const key = (item.call_sign || '').toString().trim().toUpperCase();
+        return arr.findIndex(x => (x.call_sign || '').toString().trim().toUpperCase() === key) === idx;
+      });
+      setAllVehicles(uniqueAllVehicles);
 
       // Load only vehicles that are currently in service
       const { data: assignments, error: assignmentsError } = await supabase
@@ -303,7 +335,6 @@ export const VehiclesInService: React.FC = () => {
         .select('*')
         .eq('assignment_date', today)
         .eq('status', 'In Service')
-        .order('station_assignment', { ascending: true })
         .order('call_sign', { ascending: true });
 
       if (assignmentsError) {
@@ -339,24 +370,23 @@ export const VehiclesInService: React.FC = () => {
       }).filter(Boolean) || [];
 
       console.log('Transformed vehicles:', vehiclesInService.length, 'vehicles');
-      // Sort vehicles by station assignment first, then call sign
+      // Sort vehicles by call sign only
       const sortedVehicles = vehiclesInService.sort((a, b) => {
-        const stationA = (a.assigned_station || 'Unassigned').toUpperCase();
-        const stationB = (b.assigned_station || 'Unassigned').toUpperCase();
-        const stationComparison = stationA.localeCompare(stationB);
-        if (stationComparison !== 0) return stationComparison;
-        
         const callSignA = (a.call_sign || '').toUpperCase();
         const callSignB = (b.call_sign || '').toUpperCase();
         return callSignA.localeCompare(callSignB);
       });
-      setVehicles(sortedVehicles || []);
+      const uniqueInService = sortedVehicles.filter((item, idx, arr) => {
+        const key = (item.call_sign || '').toString().trim().toUpperCase();
+        return arr.findIndex(x => (x.call_sign || '').toString().trim().toUpperCase() === key) === idx;
+      });
+      setVehicles(uniqueInService || []);
       
       // Log vehicle breakdown by category for debugging
-      const fireVehicles = allAssignments?.filter(v => (v.call_sign || '').toUpperCase().startsWith('F')) || [];
-      const commandVehicles = allAssignments?.filter(v => (v.call_sign || '').toUpperCase().startsWith('C')) || [];
-      const ambulances = allAssignments?.filter(v => (v.call_sign || '').toLowerCase().startsWith('med')) || [];
-      const utilityVehicles = allAssignments?.filter(v => (v.call_sign || '').toUpperCase().startsWith('X')) || [];
+      const fireVehicles = uniqueAllVehicles.filter(v => (v.call_sign || '').toUpperCase().startsWith('F'));
+      const commandVehicles = uniqueAllVehicles.filter(v => (v.call_sign || '').toUpperCase().startsWith('C'));
+      const ambulances = uniqueAllVehicles.filter(v => (v.call_sign || '').toLowerCase().startsWith('med'));
+      const utilityVehicles = uniqueAllVehicles.filter(v => (v.call_sign || '').toUpperCase().startsWith('X'));
       
       console.log('Vehicle breakdown:');
       console.log('- Fire Vehicles (F*):', fireVehicles.length, 'total,', vehiclesInService.filter(v => (v.call_sign || '').toUpperCase().startsWith('F')).length, 'in service');
@@ -692,11 +722,29 @@ export const VehiclesInService: React.FC = () => {
           <StyledTable>
             <thead>
               <tr>
-                <TableHeaderCell><strong>Call Sign</strong></TableHeaderCell>
-                <TableHeaderCell><strong>Vehicle Type</strong></TableHeaderCell>
+                <TableHeaderCell 
+                  onClick={() => handleSort('call_sign')}
+                  className={sortConfig.key === 'call_sign' ? sortConfig.direction : ''}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <strong>Call Sign</strong> {sortConfig.key === 'call_sign' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : '↕'}
+                </TableHeaderCell>
+                <TableHeaderCell 
+                  onClick={() => handleSort('vehicle_type')}
+                  className={sortConfig.key === 'vehicle_type' ? sortConfig.direction : ''}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <strong>Vehicle Type</strong> {sortConfig.key === 'vehicle_type' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : '↕'}
+                </TableHeaderCell>
                 <TableHeaderCell><strong>Days In Service</strong></TableHeaderCell>
-                <TableHeaderCell><strong>Assigned Station</strong></TableHeaderCell>
-                <TableHeaderCell><strong>Driver/Operator</strong></TableHeaderCell>
+                <TableHeaderCell><strong>In Service Date/Time</strong></TableHeaderCell>
+                <TableHeaderCell 
+                  onClick={() => handleSort('assigned_station')}
+                  className={sortConfig.key === 'assigned_station' ? sortConfig.direction : ''}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <strong>Assigned Station</strong> {sortConfig.key === 'assigned_station' ? (sortConfig.direction === 'asc' ? '▲' : '▼') : '↕'}
+                </TableHeaderCell>
                 <TableHeaderCell><strong>Status</strong></TableHeaderCell>
               </tr>
             </thead>
@@ -708,31 +756,31 @@ export const VehiclesInService: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                vehicles.map((vehicle) => (
+                sortedVehicles.map((vehicle) => (
                   <TableRow key={vehicle.id}>
-                    <TableCell>
-                      <strong>{vehicle.vehicle_number || vehicle.call_sign || 'N/A'}</strong>
-                      <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '4px' }}>
-                        {vehicle.vehicle_make} {vehicle.vehicle_model}
-                      </div>
-                    </TableCell>
-                    <TableCell>{vehicle.vehicle_type || 'N/A'}</TableCell>
-                    <TableCell style={{ textAlign: 'center' }}>{getDaysInService(vehicle.in_service_date, vehicle.out_of_service_date)}</TableCell>
-                    <TableCell>{vehicle.assigned_station || 'Unassigned'}</TableCell>
-                    <TableCell>{vehicle.driver_name || 'TBD'}</TableCell>
-                    <TableCell>
-                      <span style={{ 
-                        backgroundColor: '#4caf50',
-                        color: 'white',
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '0.8rem',
-                        fontWeight: 'bold'
-                      }}>
-                        {vehicle.status}
-                      </span>
-                    </TableCell>
-                  </TableRow>
+                      <TableCell>
+                        <strong>{vehicle.vehicle_number || vehicle.call_sign || 'N/A'}</strong>
+                        <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '4px' }}>
+                          {vehicle.vehicle_make} {vehicle.vehicle_model}
+                        </div>
+                      </TableCell>
+                      <TableCell>{vehicle.vehicle_type || 'N/A'}</TableCell>
+                      <TableCell style={{ textAlign: 'center' }}>{getDaysInService(vehicle.in_service_date, vehicle.out_of_service_date)}</TableCell>
+                      <TableCell>{formatDateTime(vehicle.in_service_date || vehicle.updated_at)}</TableCell>
+                      <TableCell>{vehicle.assigned_station || 'Unassigned'}</TableCell>
+                      <TableCell>
+                        <span style={{ 
+                          backgroundColor: '#4caf50',
+                          color: 'white',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          fontWeight: 'bold'
+                        }}>
+                          {vehicle.status}
+                        </span>
+                      </TableCell>
+                    </TableRow>
                 ))
               )}
             </tbody>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { usePageImage } from '../../hooks/usePageImage';
@@ -120,16 +120,16 @@ const Paragraph = styled.p`
 `;
 
 const HeaderImage = styled.img`
-  width: 190px;
+  width: 152px;
   height: auto;
-  max-width: 190px;
+  max-width: 152px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 `;
 
 const ImagePlaceholder = styled.div`
-  width: 190px;
-  height: 135px;
+  width: 152px;
+  height: 108px;
   background: #f5f5f5;
   border-radius: 8px;
   display: flex;
@@ -149,6 +149,7 @@ const FilterContainer = styled.div`
   padding: 15px;
   background: white;
   border-radius: 8px;
+  border: 2px solid #4caf50;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 `;
 
@@ -223,7 +224,7 @@ const FilterLabel = styled.label`
 
 const FilterSelect = styled.select`
   padding: 8px 12px;
-  border: 2px solid #1177BB;
+  border: 2px solid #4caf50;
   border-radius: 4px;
   font-size: 0.95rem;
   background: white;
@@ -294,6 +295,7 @@ const TableContainer = styled.div`
   overflow-x: auto;
   margin-top: 20px;
   border-radius: 8px;
+  border: 2px solid #1177BB;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 `;
 
@@ -448,22 +450,13 @@ const TruncateText = styled.div`
   line-height: 1.4;
 `;
 
-const IncidentBadge = styled.span<{ type: string }>`
-  color: ${props => {
-    switch(props.type) {
-      case 'Emergency': return '#dc3545';
-      case 'Incident': return '#ffc107';
-      case 'Maintenance': return '#17a2b8';
-      case 'Training': return '#28a745';
-      case 'Routine': return '#6f42c1';
-      default: return '#6c757d';
-    }
-  }};
-  padding: 4px 8px;
+const IncidentBadge = styled.span<{ type: string; color?: string }>`
+  background: ${props => props.color || (props.type === 'Emergency' ? '#dc3545' : props.type === 'Incident' ? '#ffc107' : props.type === 'Maintenance' ? '#17a2b8' : props.type === 'Training' ? '#28a745' : props.type === 'Routine' ? '#6f42c1' : '#6c757d')};
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
   font-size: 14px;
-  font-weight: normal;
-  line-height: 1;
-  vertical-align: middle;
+  font-weight: bold;
   display: inline-block;
   margin-right: 10px;
 `;
@@ -525,6 +518,20 @@ export const EDOBEmergencyReports: React.FC = () => {
   const [locationFilter, setLocationFilter] = useState('');
   const [incidentNumberFilter, setIncidentNumberFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [dailyBriefDateTime, setDailyBriefDateTime] = useState(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return `${today}T07:30`;
+  });
+  const [selectedPrimaryIncidents, setSelectedPrimaryIncidents] = useState<string[]>([]);
+  const [primaryDropdownOpen, setPrimaryDropdownOpen] = useState(false);
+  const primaryDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [selectedSecondaryIncidents, setSelectedSecondaryIncidents] = useState<string[]>([]);
+  const [secondaryDropdownOpen, setSecondaryDropdownOpen] = useState(false);
+  const secondaryDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
+  const locationDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
   
   // Database entries state
   const [entries, setEntries] = useState<EDOBEntry[]>([]);
@@ -536,18 +543,37 @@ export const EDOBEmergencyReports: React.FC = () => {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const entriesPerPage = 15;
+  const entriesPerPage = 20;
   
   // Calculate pagination
   const totalPages = Math.ceil(filteredEntries.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
   const endIndex = startIndex + entriesPerPage;
   const currentEntries = filteredEntries.slice(startIndex, endIndex);
+  const displayEntries = filteredEntries.slice(0, currentPage * entriesPerPage);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
   
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter]);
+
+  useEffect(() => {
+    const el = bottomRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver((entries) => {
+      const isVisible = entries.some(e => e.isIntersecting);
+      if (isVisible && currentPage < totalPages) {
+        setCurrentPage(p => Math.min(p + 1, totalPages));
+      }
+    }, { root: null, rootMargin: '200px', threshold: 0 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [bottomRef, currentPage, totalPages]);
+
+  useEffect(() => {
+    setSelectedEntryIds([]);
+  }, [filteredEntries]);
   
   // Load incident types from database
   const canonicalKey = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -608,12 +634,39 @@ export const EDOBEmergencyReports: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const loadEntriesByDate = async (date: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { data, error } = await supabase
+        .from('03_ecc_01_edob_01_entries')
+        .select('*')
+        .eq('incident_date', date)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setEntries(data || []);
+      setFilteredEntries(data || []);
+    } catch (err) {
+      console.error('Failed to load eDOB entries by date:', err);
+      setError('Failed to load eDOB entries. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // Filter entries based on selected filters
   const filterEntries = (primaryFilter: string, typeFilter: string, reporterFilter: string, locationFilter: string, incidentNumberFilter: string, dateFilter: string) => {
     let filtered = entries;
     
-    if (primaryFilter && primaryFilter !== 'All Primary Incidents') {
+    if (selectedPrimaryIncidents.length > 0) {
+      const set = new Set(selectedPrimaryIncidents);
+      filtered = filtered.filter(entry => {
+        const key = canonicalKey(entry.incident_type || '');
+        const entryPrimaryIncident = incidentTypeMap[key]?.primary || '';
+        return set.has(entryPrimaryIncident);
+      });
+    } else if (primaryFilter && primaryFilter !== 'All Primary Incidents') {
       filtered = filtered.filter(entry => {
         const key = canonicalKey(entry.incident_type || '');
         const entryPrimaryIncident = incidentTypeMap[key]?.primary || '';
@@ -621,7 +674,10 @@ export const EDOBEmergencyReports: React.FC = () => {
       });
     }
     
-    if (typeFilter && typeFilter !== 'All Secondary Incidents') {
+    if (selectedSecondaryIncidents.length > 0) {
+      const set = new Set(selectedSecondaryIncidents);
+      filtered = filtered.filter(entry => set.has(String(entry.incident_type || '')));
+    } else if (typeFilter && typeFilter !== 'All Secondary Incidents') {
       filtered = filtered.filter(entry => entry.incident_type === typeFilter);
     }
     
@@ -629,7 +685,10 @@ export const EDOBEmergencyReports: React.FC = () => {
       filtered = filtered.filter(entry => entry.reported_by === reporterFilter);
     }
     
-    if (locationFilter && locationFilter !== 'All Locations') {
+    if (selectedLocations.length > 0) {
+      const set = new Set(selectedLocations);
+      filtered = filtered.filter(entry => set.has(String(entry.location || '')));
+    } else if (locationFilter && locationFilter !== 'All Locations') {
       filtered = filtered.filter(entry => entry.location === locationFilter);
     }
     
@@ -641,7 +700,29 @@ export const EDOBEmergencyReports: React.FC = () => {
     }
     
     if (dateFilter) {
-      filtered = filtered.filter(entry => entry.incident_date === dateFilter);
+      filtered = filtered.filter(entry => String(entry.incident_date || '').slice(0, 10) === dateFilter);
+    }
+    
+    if (dailyBriefDateTime) {
+      const end = new Date(dailyBriefDateTime);
+      const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+
+      const getEntryDateTime = (e: EDOBEntry): Date | null => {
+        const dStr = String(e.incident_date || '').trim();
+        const tRaw = String(e.incident_time || '').trim();
+        const tStr = (tRaw.split('.')[0] || '00:00:00');
+        if (dStr) {
+          const dt = new Date(`${dStr}T${tStr}`);
+          if (!isNaN(dt.getTime())) return dt;
+        }
+        const created = e.created_at ? new Date(e.created_at) : null;
+        return created && !isNaN(created.getTime()) ? created : null;
+      };
+
+      filtered = filtered.filter(e => {
+        const dt = getEntryDateTime(e);
+        return dt ? dt >= start && dt <= end : false;
+      });
     }
     
     setFilteredEntries(filtered);
@@ -651,6 +732,7 @@ export const EDOBEmergencyReports: React.FC = () => {
   const handlePrimaryIncidentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
     setPrimaryIncidentFilter(value);
+    setSelectedPrimaryIncidents([]);
     
     // Reset secondary incident filter if it's no longer valid for the selected primary incident
     const filteredSecondaryTypes = value && value !== 'All Primary Incidents'
@@ -665,6 +747,111 @@ export const EDOBEmergencyReports: React.FC = () => {
     setIncidentTypeFilter(newSecondaryFilter);
     
     filterEntries(value, newSecondaryFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  };
+
+  const togglePrimaryIncidentSelection = (name: string) => {
+    setSelectedPrimaryIncidents(prev => {
+      const exists = prev.includes(name);
+      const next = exists ? prev.filter(n => n !== name) : [...prev, name];
+      filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+      return next;
+    });
+  };
+
+  const clearPrimaryIncidentSelection = () => {
+    setSelectedPrimaryIncidents([]);
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  };
+
+  const selectAllPrimaryIncidents = () => {
+    const all = uniquePrimaryIncidents.filter(Boolean);
+    setSelectedPrimaryIncidents(all);
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  };
+
+  useEffect(() => {
+    if (!primaryDropdownOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (primaryDropdownRef.current && !primaryDropdownRef.current.contains(e.target as Node)) {
+        setPrimaryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [primaryDropdownOpen]);
+
+  useEffect(() => {
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  }, [selectedPrimaryIncidents]);
+
+  useEffect(() => {
+    if (!secondaryDropdownOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (secondaryDropdownRef.current && !secondaryDropdownRef.current.contains(e.target as Node)) {
+        setSecondaryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [secondaryDropdownOpen]);
+
+  useEffect(() => {
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  }, [selectedSecondaryIncidents]);
+
+  useEffect(() => {
+    if (!locationDropdownOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(e.target as Node)) {
+        setLocationDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [locationDropdownOpen]);
+
+  useEffect(() => {
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  }, [selectedLocations]);
+
+  const toggleSecondaryIncidentSelection = (name: string) => {
+    setSelectedSecondaryIncidents(prev => {
+      const exists = prev.includes(name);
+      const next = exists ? prev.filter(n => n !== name) : [...prev, name];
+      filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+      return next;
+    });
+  };
+
+  const clearSecondaryIncidentSelection = () => {
+    setSelectedSecondaryIncidents([]);
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  };
+
+  const selectAllSecondaryIncidents = () => {
+    const all = filteredIncidentTypes.map(t => t.name).filter(Boolean);
+    setSelectedSecondaryIncidents(all);
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  };
+
+  const toggleLocationSelection = (loc: string) => {
+    setSelectedLocations(prev => {
+      const exists = prev.includes(loc);
+      const next = exists ? prev.filter(n => n !== loc) : [...prev, loc];
+      filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+      return next;
+    });
+  };
+
+  const clearLocationSelection = () => {
+    setSelectedLocations([]);
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  };
+
+  const selectAllLocations = () => {
+    const all = uniqueLocations.filter(Boolean);
+    setSelectedLocations(all);
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
   };
   
   const handleIncidentTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -685,16 +872,59 @@ export const EDOBEmergencyReports: React.FC = () => {
     filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, value, incidentNumberFilter, dateFilter);
   };
   
+  const handleDailyBriefDateTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setDailyBriefDateTime(value);
+    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, dateFilter);
+  };
+
+  const handleClearAllFilters = async () => {
+    try {
+      setPrimaryIncidentFilter('');
+      setIncidentTypeFilter('');
+      setReportedByFilter('');
+      setLocationFilter('');
+      setIncidentNumberFilter('');
+      setDateFilter('');
+      setDailyBriefDateTime('');
+      setSelectedPrimaryIncidents([]);
+      setSelectedSecondaryIncidents([]);
+      setSelectedLocations([]);
+      setSelectedEntryIds([]);
+      setPrimaryDropdownOpen(false);
+      setSecondaryDropdownOpen(false);
+      setLocationDropdownOpen(false);
+      setCurrentPage(1);
+      await loadEntries();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {}
+  };
+  
   const handleIncidentNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setIncidentNumberFilter(value);
     filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, value, dateFilter);
   };
   
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDateChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setDateFilter(value);
-    filterEntries(primaryIncidentFilter, incidentTypeFilter, reportedByFilter, locationFilter, incidentNumberFilter, value);
+    // Reset other filters to avoid conflicting zero-results after date change
+    setSelectedPrimaryIncidents([]);
+    setSelectedSecondaryIncidents([]);
+    setSelectedLocations([]);
+    setPrimaryIncidentFilter('');
+    setIncidentTypeFilter('');
+    setLocationFilter('');
+    setReportedByFilter('');
+    setIncidentNumberFilter('');
+    setCurrentPage(1);
+    if (value) {
+      await loadEntriesByDate(value);
+    } else {
+      await loadEntries();
+    }
+    filterEntries('', '', '', '', '', value);
   };
   
   // Load entries and incident types on component mount
@@ -725,7 +955,11 @@ export const EDOBEmergencyReports: React.FC = () => {
     console.log('=== handlePrint called ===');
     console.log('Filtered entries count:', filteredEntries.length);
     
-    if (filteredEntries.length === 0) {
+    const entriesToPrint = selectedEntryIds.length > 0
+      ? filteredEntries.filter(e => selectedEntryIds.includes(e.id))
+      : filteredEntries;
+
+    if (entriesToPrint.length === 0) {
       alert('No entries to print. Please adjust your filters.');
       return;
     }
@@ -808,9 +1042,9 @@ export const EDOBEmergencyReports: React.FC = () => {
       console.log('VFH setup completed, table start Y:', vfhSetup.tableStartY);
       
       // Prepare table data
-      console.log('Preparing table data for', filteredEntries.length, 'entries');
+      console.log('Preparing table data for', entriesToPrint.length, 'entries');
       // Compute chronological sequence map for filtered entries
-      const seqSorted = filteredEntries.map(e => {
+      const seqSorted = entriesToPrint.map(e => {
         const createdStr = formatDateTime(e.created_at || '');
         const [cDate, cTime] = createdStr.includes(' ') ? createdStr.split(' ') : ['', ''];
         const keyDate = e.incident_date || cDate;
@@ -821,7 +1055,7 @@ export const EDOBEmergencyReports: React.FC = () => {
       const sequenceMap = new Map<string, number>();
       seqSorted.forEach((item, i) => sequenceMap.set(item.id, i + 1));
 
-      const tableData = filteredEntries.map((entry, index) => {
+      const tableData = entriesToPrint.map((entry, index) => {
         const combinedBrief = `Description: ${entry.description || 'N/A'}\nAction Taken: ${entry.action_taken || 'N/A'}`;
         const created = formatDateTime(entry.created_at || '');
         const [createdDate, createdTime] = created.includes(' ') ? created.split(' ') : ['', ''];
@@ -946,29 +1180,7 @@ export const EDOBEmergencyReports: React.FC = () => {
                 performance metrics for regulatory compliance and operational improvement.
               </Paragraph>
               
-              {/* Search Form - inline with content */}
-              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginTop: '20px' }}>
-                <FilterGroup>
-                  <FilterLabel htmlFor="incident-number-filter">Search By Incident #:</FilterLabel>
-                  <FilterInput 
-                    id="incident-number-filter"
-                    type="number"
-                    placeholder="Search by number"
-                    value={incidentNumberFilter}
-                    onChange={handleIncidentNumberChange}
-                  />
-                </FilterGroup>
-                
-                <FilterGroup>
-                  <FilterLabel htmlFor="date-filter">Search By Date:</FilterLabel>
-                  <FilterInput 
-                    id="date-filter"
-                    type="date"
-                    value={dateFilter}
-                    onChange={handleDateChange}
-                  />
-                </FilterGroup>
-              </div>
+              
             </Column>
             <ImageColumn>
               {imageLoading ? (
@@ -995,49 +1207,97 @@ export const EDOBEmergencyReports: React.FC = () => {
           <FilterContainer>
             <LeftControls>
               <FilterGroup>
-                <FilterLabel htmlFor="primary-incident-filter">Filter By Primary Incidents:</FilterLabel>
-                <FilterSelect 
-                  id="primary-incident-filter"
-                  value={primaryIncidentFilter} 
-                  onChange={handlePrimaryIncidentChange}
-                >
-                  {allPrimaryIncidentOptions.map((incident) => (
-                    <option key={incident} value={incident}>
-                      {incident}
-                    </option>
-                  ))}
-                </FilterSelect>
+                <FilterLabel>Filter By Primary Incidents:</FilterLabel>
+                <div ref={primaryDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                  <button
+                    type="button"
+                    onClick={() => setPrimaryDropdownOpen(o => !o)}
+                    style={{ padding: '8px 12px', border: '2px solid #1177BB', borderRadius: 6, background: '#fff', color: '#1177BB', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    Filter Primary ({selectedPrimaryIncidents.length ? selectedPrimaryIncidents.length : 'All'})
+                  </button>
+                  {primaryDropdownOpen && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, background: '#fff', border: '1px solid #ddd', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', minWidth: 280, padding: 8, maxHeight: 280, overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <button type="button" onClick={clearPrimaryIncidentSelection} style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, background: '#f7f7f7', cursor: 'pointer' }}>Clear</button>
+                        <button type="button" onClick={selectAllPrimaryIncidents} style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, background: '#f7f7f7', cursor: 'pointer' }}>Select All</button>
+                      </div>
+                      {(uniquePrimaryIncidents.filter(Boolean) || []).map((incident) => (
+                        <label key={incident} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
+                          <input type="checkbox" checked={selectedPrimaryIncidents.includes(incident)} onChange={() => togglePrimaryIncidentSelection(incident)} />
+                          <span>{incident}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </FilterGroup>
               
               <FilterGroup>
-                <FilterLabel htmlFor="incident-type-filter">Filter By Secondary Incidents:</FilterLabel>
-                <FilterSelect 
-                  id="incident-type-filter"
-                  value={incidentTypeFilter} 
-                  onChange={handleIncidentTypeChange}
-                >
-                  <option value="">All Secondary Incidents</option>
-                  {filteredIncidentTypes.map((type) => (
-                    <option key={type.id} value={type.name}>
-                      {type.display_name}
-                    </option>
-                  ))}
-                </FilterSelect>
+                <FilterLabel>Filter By Secondary Incidents:</FilterLabel>
+                <div ref={secondaryDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSecondaryDropdownOpen(o => !o)}
+                    style={{ padding: '8px 12px', border: '2px solid #1177BB', borderRadius: 6, background: '#fff', color: '#1177BB', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    Filter Secondary ({selectedSecondaryIncidents.length ? selectedSecondaryIncidents.length : 'All'})
+                  </button>
+                  {secondaryDropdownOpen && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, background: '#fff', border: '1px solid #ddd', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', minWidth: 280, padding: 8, maxHeight: 280, overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <button type="button" onClick={clearSecondaryIncidentSelection} style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, background: '#f7f7f7', cursor: 'pointer' }}>Clear</button>
+                        <button type="button" onClick={selectAllSecondaryIncidents} style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, background: '#f7f7f7', cursor: 'pointer' }}>Select All</button>
+                      </div>
+                      {(filteredIncidentTypes || []).map((type) => (
+                        <label key={type.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
+                          <input type="checkbox" checked={selectedSecondaryIncidents.includes(type.name)} onChange={() => toggleSecondaryIncidentSelection(type.name)} />
+                          <span>{type.display_name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </FilterGroup>
               
               <FilterGroup>
-                <FilterLabel htmlFor="location-filter">Filter By Location:</FilterLabel>
-                <FilterSelect 
-                  id="location-filter"
-                  value={locationFilter} 
-                  onChange={handleLocationChange}
-                >
-                  {allLocationOptions.map((location) => (
-                    <option key={location} value={location}>
-                      {location}
-                    </option>
-                  ))}
-                </FilterSelect>
+                <FilterLabel>Filter By Location:</FilterLabel>
+                <div ref={locationDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                  <button
+                    type="button"
+                    onClick={() => setLocationDropdownOpen(o => !o)}
+                    style={{ padding: '8px 12px', border: '2px solid #1177BB', borderRadius: 6, background: '#fff', color: '#1177BB', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    Filter Locations ({selectedLocations.length ? selectedLocations.length : 'All'})
+                  </button>
+                  {locationDropdownOpen && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, background: '#fff', border: '1px solid #ddd', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', minWidth: 280, padding: 8, maxHeight: 280, overflowY: 'auto' }}>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <button type="button" onClick={clearLocationSelection} style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, background: '#f7f7f7', cursor: 'pointer' }}>Clear</button>
+                        <button type="button" onClick={selectAllLocations} style={{ padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, background: '#f7f7f7', cursor: 'pointer' }}>Select All</button>
+                      </div>
+                      {(uniqueLocations.filter(Boolean) || []).map((loc) => (
+                        <label key={loc} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
+                          <input type="checkbox" checked={selectedLocations.includes(loc)} onChange={() => toggleLocationSelection(loc)} />
+                          <span>{loc}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </FilterGroup>
+              <FilterGroup>
+                <FilterLabel htmlFor="daily-brief-datetime">Daily Brief Report (Date & Time):</FilterLabel>
+                <FilterInput
+                  id="daily-brief-datetime"
+                  type="datetime-local"
+                  value={dailyBriefDateTime}
+                  onChange={handleDailyBriefDateTimeChange}
+                />
+              </FilterGroup>
+              <FilterGroup>
+                <FilterLabel style={{ visibility: 'hidden' }}>Refresh</FilterLabel>
+                <button type="button" onClick={handleClearAllFilters} style={{ padding: '8px 12px', border: '1px solid #ccc', borderRadius: 6, background: '#f7f7f7', cursor: 'pointer' }}>Refresh</button>
               </FilterGroup>
             </LeftControls>
             
@@ -1079,9 +1339,17 @@ export const EDOBEmergencyReports: React.FC = () => {
                 
                 {/* Data Table */}
                 <TableContainer>
-                  <DataTable>
+                    <DataTable>
+                    <colgroup>
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '14%' }} />
+                      <col style={{ width: '18%' }} />
+                      <col style={{ width: '16%' }} />
+                      <col style={{ width: '46%' }} />
+                    </colgroup>
                     <thead>
                       <tr>
+                        <TableHeaderCell style={{ width: '6%', textAlign: 'center' }}>Select</TableHeaderCell>
                         <TableHeaderCell>Incident Number</TableHeaderCell>
                         <TableHeaderCell>Incident Type</TableHeaderCell>
                         <TableHeaderCell>Location</TableHeaderCell>
@@ -1090,8 +1358,8 @@ export const EDOBEmergencyReports: React.FC = () => {
                     </thead>
                     <tbody>
                       {(() => {
-                        // Compute sequence map for current page entries
-                        const seqSortedUi = currentEntries.map(e => {
+                        // Compute sequence map for displayed entries
+                        const seqSortedUi = displayEntries.map(e => {
                           const createdStr = formatDateTime(e.created_at || '');
                           const [cDate, cTime] = createdStr.includes(' ') ? createdStr.split(' ') : ['', ''];
                           const keyDate = e.incident_date || cDate;
@@ -1102,7 +1370,7 @@ export const EDOBEmergencyReports: React.FC = () => {
                         const sequenceMapUi = new Map<string, number>();
                         seqSortedUi.forEach((item, i) => sequenceMapUi.set(item.id, i + 1));
                         
-                        return currentEntries.map((entry, index) => {
+                        return displayEntries.map((entry, index) => {
                           const isEmergency = entry.incident_type === 'Emergency';
                           const created = formatDateTime(entry.created_at || '');
                           const [createdDate, createdTime] = created.includes(' ') ? created.split(' ') : ['', ''];
@@ -1112,6 +1380,18 @@ export const EDOBEmergencyReports: React.FC = () => {
                           
                           return (
                             <tr key={entry.id}>
+                              <TableCell $isEmergency={isEmergency} style={{ width: '6%', textAlign: 'center' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedEntryIds.includes(entry.id)}
+                                  onChange={() => {
+                                    setSelectedEntryIds(prev => {
+                                      const exists = prev.includes(entry.id);
+                                      return exists ? prev.filter(id => id !== entry.id) : [...prev, entry.id];
+                                    });
+                                  }}
+                                />
+                              </TableCell>
                               <TableCell $isEmergency={isEmergency} style={{ whiteSpace: 'nowrap', fontFamily: 'Courier New, monospace', fontWeight: 'normal' }}>
                                 {(() => {
                                   const dateStr = (fallbackDate || '').trim();
@@ -1133,9 +1413,15 @@ export const EDOBEmergencyReports: React.FC = () => {
                                 })()}
                               </TableCell>
                               <TableCell $isEmergency={isEmergency}>
-                                <IncidentBadge type={entry.incident_type}>
-                                  {incidentTypeMap[canonicalKey(entry.incident_type || '')]?.display || entry.incident_type}
-                                </IncidentBadge>
+                                {(() => {
+                                  const typeObj = incidentTypes.find(t => t.name === entry.incident_type || t.display_name === entry.incident_type);
+                                  const badgeColor = typeObj?.color_code || undefined;
+                                  return (
+                                    <IncidentBadge type={entry.incident_type} color={badgeColor}>
+                                      {incidentTypeMap[canonicalKey(entry.incident_type || '')]?.display || entry.incident_type}
+                                    </IncidentBadge>
+                                  );
+                                })()}
                               </TableCell>
                               <TableCell $isEmergency={isEmergency} style={{ fontSize: '14px' }}>
                                 {entry.location}
@@ -1153,6 +1439,7 @@ export const EDOBEmergencyReports: React.FC = () => {
                     </tbody>
                   </DataTable>
                 </TableContainer>
+                <div ref={bottomRef} style={{ height: '1px' }} />
                 
                 {/* Pagination */}
                 {totalPages > 1 && (

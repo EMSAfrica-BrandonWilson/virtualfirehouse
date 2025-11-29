@@ -30,7 +30,6 @@ const getDisplayPathName = (path: string): string => {
     '/control/daily-duty-rostering/vehicle-station-assignment': 'Vehicle Station Assignment',
     '/control/daily-duty-rostering/vehicles-in-service': 'Vehicles: In Service',
     '/control/daily-duty-rostering/vehicles-out-of-service': 'Vehicles: Out of Service',
-    '/control/daily-occurrence-book/reports': 'eDOB Reports',
     '/control/daily-occurrence-book/emergency-reports': 'Emergency Reports',
     '/control/ecc-checklists/refuelling-log-book/records': 'Refuelling Logbook',
     '/admin/register/staff/reports': 'Staff Reports',
@@ -301,7 +300,6 @@ const getLeftMenuItems = (currentPath: string, isSystemAdmin: boolean = false, u
       return [
         { name: 'daily-occurrence-book-main', path: '/control/daily-occurrence-book', text: 'Daily Occurrence Book' },
         { name: 'edob-entry-form', path: '/control/daily-occurrence-book/entry-form', text: 'eDOB Entry Form' },
-        { name: 'edob-reports', path: '/control/daily-occurrence-book/reports', text: 'eDOB Daily Brief Report' },
         { name: 'edob-emergency-reports', path: '/control/daily-occurrence-book/emergency-reports', text: 'eDOB Reports: Emergencies' },
         { name: 'edob-report-recipients', path: '/control/daily-occurrence-book/report-recipients', text: 'eDOB Report Recipients' },
       ];
@@ -411,9 +409,17 @@ const getLeftMenuItems = (currentPath: string, isSystemAdmin: boolean = false, u
     const slug = currentPath.split('/')[2] || '';
     const active = fsSections.find(s => s.name === slug);
     if (active) {
-      return [
-        { name: active.name, path: active.path, text: active.text },
-      ];
+      const base = [{ name: active.name, path: active.path, text: active.text }];
+      if (active.name === 'fire-codes') {
+        const sub = [
+          { name: 'core-mandatory-codes', path: '/fire-safety/fire-codes/core-mandatory-codes', text: 'Core Mandatory Codes' },
+          { name: 'international-standards', path: '/fire-safety/fire-codes/international-standards', text: 'International Standards' },
+          { name: 'civil-defense-publications', path: '/fire-safety/fire-codes/civil-defense-publications', text: 'Civil Defense Publications' },
+          { name: 'industry-specific-guidelines', path: '/fire-safety/fire-codes/industry-specific-guidelines', text: 'Industry-Specific Guidelines' },
+        ];
+        return [...base, ...sub];
+      }
+      return base;
     }
     return fsSections;
   }

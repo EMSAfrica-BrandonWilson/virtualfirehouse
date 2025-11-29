@@ -677,6 +677,8 @@ export const VehicleEnhanced: React.FC = () => {
   const [pendingCallSign, setPendingCallSign] = useState<string>('');
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [successModalMessage, setSuccessModalMessage] = useState('');
+  const [dupModalOpen, setDupModalOpen] = useState(false);
+  const [dupMessages, setDupMessages] = useState<string[]>([]);
 
   // Normalize DB/ISO date strings for HTML date input (expects YYYY-MM-DD)
   const formatDateForInput = (value: string | null | undefined): string => {
@@ -1346,6 +1348,42 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
     return Object.keys(errors).length === 0;
   };
 
+  const checkDuplicates = async (): Promise<string[]> => {
+    const msgs: string[] = [];
+    try {
+      const { data, error } = await supabase
+        .from('02_admin_register_fd4_vehicles')
+        .select('*');
+      if (error) {
+        console.warn('Duplicate check read failed:', error);
+        return msgs;
+      }
+      const list = Array.isArray(data) ? data : [];
+      const norm = (s: any) => (s ?? '').toString().trim().toLowerCase();
+      const targetPlate = norm(vehicleData.veh_plate_no);
+      const targetMms = norm(vehicleData.veh_mms_no);
+      const targetGate = norm(vehicleData.veh_gate_pass_no);
+
+      const isSameId = (row: any) => isEditing && editingVehicleId && String(row.id) === String(editingVehicleId);
+      const fields = (row: any) => ({
+        plate: norm(row.vehicle_license_plate ?? row.registration_plate_number ?? row.plate_number ?? row.plate_no),
+        mms: norm(row.vehicle_mms_number ?? row.mms_number),
+        gate: norm(row.vehicle_gate_pass ?? row.gate_pass_number)
+      });
+
+      for (const row of list) {
+        if (isSameId(row)) continue;
+        const f = fields(row);
+        if (targetPlate && f.plate && targetPlate === f.plate) msgs.push(`Duplicate Plate Number: ${vehicleData.veh_plate_no}`);
+        if (targetMms && f.mms && targetMms === f.mms) msgs.push(`Duplicate MMS #: ${vehicleData.veh_mms_no}`);
+        if (targetGate && f.gate && targetGate === f.gate) msgs.push(`Duplicate Gate Pass #: ${vehicleData.veh_gate_pass_no}`);
+      }
+    } catch (e) {
+      console.warn('Duplicate check exception:', e);
+    }
+    return Array.from(new Set(msgs));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -1365,6 +1403,14 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
     try {
       let imageUrl = vehicleData.vehicle_picture_url;
       
+      // duplicate checks
+      const duplicates = await checkDuplicates();
+      if (duplicates.length > 0) {
+        setDupMessages(duplicates);
+        setDupModalOpen(true);
+        return;
+      }
+
       // Upload image if new file selected
       if (vehicleData.vehiclePicture) {
         imageUrl = await uploadImage(vehicleData.vehiclePicture);
@@ -2142,6 +2188,24 @@ const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectEle
             <p style={{ marginTop: 8 }}>{successModalMessage}</p>
             <ModalActions>
               <SubmitButton type="button" onClick={dismissSuccessModal}>OK</SubmitButton>
+            </ModalActions>
+          </ModalBox>
+        </ModalOverlay>
+      )}
+
+      {dupModalOpen && (
+        <ModalOverlay>
+          <ModalBox role="dialog" aria-modal="true" aria-labelledby="vehicle-duplicate-title">
+            <h3 id="vehicle-duplicate-title" style={{ margin: 0, color: '#dc3545' }}>Duplicate Detected</h3>
+            <div style={{ marginTop: 8 }}>
+              <ul style={{ paddingLeft: 18, margin: 0 }}>
+                {dupMessages.map((m, i) => (
+                  <li key={i} style={{ marginBottom: 6 }}>{m}</li>
+                ))}
+              </ul>
+            </div>
+            <ModalActions>
+              <SubmitButton type="button" onClick={() => setDupModalOpen(false)} style={{ backgroundColor: '#6c757d' }}>Close</SubmitButton>
             </ModalActions>
           </ModalBox>
         </ModalOverlay>

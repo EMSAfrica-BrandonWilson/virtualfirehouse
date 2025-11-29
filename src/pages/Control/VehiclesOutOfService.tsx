@@ -158,6 +158,7 @@ const StyledTable = styled.table`
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  table-layout: fixed;
 `;
 
 const TableHeader = styled.thead`
@@ -428,6 +429,25 @@ export default function VehiclesOutOfService() {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
+  };
+
+  const formatInputDateTime = (iso?: string): string => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const y = d.getFullYear();
+      const m = pad(d.getMonth() + 1);
+      const day = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const mm = pad(d.getMinutes());
+      return `${y}-${m}-${day}T${hh}:${mm}`;
+    } catch { return ''; }
+  };
+
+  const handleOutOfServiceDateChange = (vehicleId: string, value: string) => {
+    setVehicles(prev => prev.map(v => v.id === vehicleId ? { ...v, out_of_service_date: value } : v));
   };
 
   // Get sorted vehicles
@@ -716,45 +736,18 @@ export default function VehiclesOutOfService() {
     }
   };
 
-  // Load all vehicles to get total counts - using vehicle_registrations for accurate totals
-  const loadAllVehicles = async () => {
+  // Load assignments for totals (status from station_assignments)
+  const loadAllAssignmentsForDate = async (date: string) => {
     try {
-      console.log('Loading all vehicles for total counts from vehicle_registrations...');
-      
-      // Load all vehicle registrations to get accurate total counts (33 vehicles)
-      const { data: allRegistrations, error: allError } = await supabase
-        .from('vehicle_registrations')
-        .select('*');
-
-      if (allError) {
-        console.error('Error loading vehicle registrations:', allError);
-        throw allError;
-      }
-
-      console.log('All vehicle registrations loaded:', allRegistrations?.length || 0, 'vehicles total');
-      
-      // Transform vehicle_registrations data to match the expected format for flash cards
-      // The vehicle_registrations table doesn't have call_sign, so we need to map it properly
-      const transformedVehicles = (allRegistrations || []).map(registration => ({
-        id: registration.id,
-        call_sign: registration.vehicle_name || registration.license_plate || `VEH${registration.id}`, // Use vehicle_name or license_plate as call_sign fallback
-        vehicle_type: registration.vehicle_type || 'Unknown',
-        vehicle_make: registration.manufacturer || '',
-        vehicle_model: registration.model || '',
-        status: registration.status || 'Active',
-        // Add other necessary fields with defaults
-        assignment_date: new Date().toISOString().split('T')[0],
-        station_assignment: registration.home_station || 'Unassigned',
-        crew_members: registration.assigned_crew || '',
-        readiness: 'Operational',
-        created_at: registration.created_at,
-        updated_at: registration.updated_at
-      }));
-      
-      return transformedVehicles;
-    } catch (error) {
-      console.error('Exception loading vehicle registrations:', error);
-      // Fallback to empty array on any error
+      const { data, error } = await supabase
+        .from('03_ecc_02_duty_roster_01_station_assignments')
+        .select('*')
+        .eq('assignment_date', date)
+        .order('call_sign', { ascending: true });
+      if (error) throw error;
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      console.error('Error loading all assignments for totals:', e);
       return [];
     }
   };
@@ -776,22 +769,24 @@ export default function VehiclesOutOfService() {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
       
-      // Load all registered vehicles first to get accurate total counts (same as Vehicles In Service)
-      const allRegisteredVehicles = await loadAllVehicles();
-      setAllVehicles(allRegisteredVehicles);
+      // Load all assignments for today to compute totals by status
+      const allAssignmentsToday = await loadAllAssignmentsForDate(currentDate);
+      const uniqueAll = (allAssignmentsToday || []).filter((item, idx, arr) => {
+        const key = (item.call_sign || '').toString().trim().toUpperCase();
+        return arr.findIndex(x => (x.call_sign || '').toString().trim().toUpperCase() === key) === idx;
+      });
+      setAllVehicles(uniqueAll);
       
       // Load vehicle assignments data from the vehicle_assignments table for out of service vehicles
       console.log('Loading vehicle assignments for out of service vehicles...');
       
-      console.log('Loading assignments from', sevenDaysAgoStr, 'to', currentDate);
       const { data: assignments, error: assignmentsError } = await supabase
         .from('03_ecc_02_duty_roster_01_station_assignments')
         .select(`
           *,
           vehicle_id
         `)
-        .gte('assignment_date', sevenDaysAgoStr)
-        .lte('assignment_date', currentDate)
+        .eq('assignment_date', currentDate)
         .eq('status', 'Out of Service')
         .order('updated_at', { ascending: false }); // Get most recent updates first
 
@@ -800,7 +795,7 @@ export default function VehiclesOutOfService() {
         throw assignmentsError;
       }
 
-      console.log('Assignments loaded:', assignments?.length || 0, 'out of service vehicles from last 7 days');
+      console.log('Assignments loaded:', assignments?.length || 0, 'out of service vehicles today');
       
       // Debug: Check if reason fields are present in the out of service assignments
       if (assignments && assignments.length > 0) {
@@ -937,21 +932,25 @@ export default function VehiclesOutOfService() {
           reason_text: vehiclesOutOfService[0].reason_text
         });
       }
-      setVehicles(vehiclesOutOfService || []);
+      const uniqueOOS = (vehiclesOutOfService || []).filter((item, idx, arr) => {
+        const key = (item.call_sign || '').toString().trim().toUpperCase();
+        return arr.findIndex(x => (x.call_sign || '').toString().trim().toUpperCase() === key) === idx;
+      });
+      setVehicles(uniqueOOS);
       setLastUpdated(new Date()); // Update last updated timestamp
       
       // Log vehicle breakdown by category for debugging - using today's assignments (same as Vehicles In Service)
-      const fireVehicles = allRegisteredVehicles.filter(v => (v.call_sign || '').toUpperCase().startsWith('F'));
-      const commandVehicles = allRegisteredVehicles.filter(v => (v.call_sign || '').toUpperCase().startsWith('C'));
-      const ambulances = allRegisteredVehicles.filter(v => (v.call_sign || '').toLowerCase().startsWith('med'));
-      const utilityVehicles = allRegisteredVehicles.filter(v => (v.call_sign || '').toUpperCase().startsWith('X'));
+      const fireVehicles = uniqueAll.filter(v => (v.call_sign || '').toUpperCase().startsWith('F'));
+      const commandVehicles = uniqueAll.filter(v => (v.call_sign || '').toUpperCase().startsWith('C'));
+      const ambulances = uniqueAll.filter(v => (v.call_sign || '').toLowerCase().startsWith('med'));
+      const utilityVehicles = uniqueAll.filter(v => (v.call_sign || '').toUpperCase().startsWith('X'));
       
       console.log('Vehicle breakdown (today\'s assignments):');
       console.log('- Fire Vehicles (F*):', fireVehicles.length, 'total,', vehiclesOutOfService.filter(v => (v.call_sign || '').toUpperCase().startsWith('F')).length, 'out of service');
       console.log('- Command Vehicles (C*):', commandVehicles.length, 'total,', vehiclesOutOfService.filter(v => (v.call_sign || '').toUpperCase().startsWith('C')).length, 'out of service');
       console.log('- Ambulances (Med*):', ambulances.length, 'total,', vehiclesOutOfService.filter(v => (v.call_sign || '').toLowerCase().startsWith('med')).length, 'out of service');
       console.log('- Utility Vehicles (X*):', utilityVehicles.length, 'total,', vehiclesOutOfService.filter(v => (v.call_sign || '').toUpperCase().startsWith('X')).length, 'out of service');
-      console.log('- Total vehicles:', allRegisteredVehicles.length, 'total,', vehiclesOutOfService.length, 'out of service');
+      console.log('- Total vehicles:', uniqueAll.length, 'total,', vehiclesOutOfService.length, 'out of service');
       
     } catch (err: any) {
       console.error('Error in loadVehicles:', err);
@@ -1725,6 +1724,15 @@ export default function VehiclesOutOfService() {
       <Section>
         <TableContainer>
           <StyledTable>
+            <colgroup>
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '38%' }} />
+              <col style={{ width: '6%' }} />
+            </colgroup>
             <TableHeader>
               <TableRow>
                 <SortableHeaderCell 
@@ -1735,8 +1743,9 @@ export default function VehiclesOutOfService() {
                   Call Sign
                 </SortableHeaderCell>
                 <TableHeaderCell>Vehicle Type</TableHeaderCell>
-                <TableHeaderCell>Days Out</TableHeaderCell>
-                <TableHeaderCell style={{ minWidth: '220px' }}>Maintenance Type</TableHeaderCell>
+                <TableHeaderCell>Out of Service Date/Time</TableHeaderCell>
+                <TableHeaderCell style={{ textAlign: 'center' }}>Days Out</TableHeaderCell>
+                <TableHeaderCell>Maintenance Type</TableHeaderCell>
                 <TableHeaderCell>Out of Service Reason</TableHeaderCell>
                 <TableHeaderCell style={{ width: '120px', textAlign: 'center' }}>Actions</TableHeaderCell>
               </TableRow>
@@ -1758,6 +1767,22 @@ export default function VehiclesOutOfService() {
                       </div>
                     </TableCell>
                     <TableCell>{vehicle.vehicle_type || 'N/A'}</TableCell>
+                    <TableCell>
+                      {editingVehicleId === vehicle.id ? (
+                        <input
+                          type="datetime-local"
+                          value={formatInputDateTime(vehicle.out_of_service_date || vehicle.updated_at || vehicle.created_at)}
+                          onChange={(e) => handleOutOfServiceDateChange(vehicle.id, e.target.value)}
+                          style={{ width: '100%', padding: '8px', border: '1px solid #dee2e6', borderRadius: 4 }}
+                        />
+                      ) : (
+                        (() => {
+                          const iso = vehicle.out_of_service_date || vehicle.updated_at || vehicle.created_at;
+                          const str = formatInputDateTime(iso);
+                          return str ? str.replace('T', ' ') : 'N/A';
+                        })()
+                      )}
+                    </TableCell>
                     <TableCell style={{ textAlign: 'center' }}>
                       {(() => {
                         try {

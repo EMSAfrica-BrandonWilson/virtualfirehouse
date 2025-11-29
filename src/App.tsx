@@ -35,7 +35,7 @@ import { TrainingLanding } from './pages/TrainingLanding';
 import { DailyOccurrenceBook } from './pages/Control/DailyOccurrenceBook';
 import { EDOBEntryForm } from './pages/Control/EDOBEntryForm';
 // Lazy-loaded heavy pages
-const EDOBReports = lazy(() => import('./pages/Control/EDOBReports').then(m => ({ default: m.EDOBReports })));
+// const EDOBReports = lazy(() => import('./pages/Control/EDOBReports').then(m => ({ default: m.EDOBReports })));
 const EDOBEmergencyReports = lazy(() => import('./pages/Control/EDOBEmergencyReports').then(m => ({ default: m.EDOBEmergencyReports })));
 import { EDOBReportRecipients } from './pages/Control/EDOBReportRecipients';
 import { DailyDutyRostering } from './pages/Control/DailyDutyRostering';
@@ -791,13 +791,7 @@ function App() {
                 </MainMaster>
               } />
               
-              <Route path="/control/daily-occurrence-book/reports" element={
-                <MainMaster>
-                  <ProtectedRoute>
-                    <EDOBReports />
-                  </ProtectedRoute>
-                </MainMaster>
-              } />
+              {/* Removed EDOBReports route */}
               
               <Route path="/control/daily-occurrence-book/emergency-reports" element={
                 <MainMaster>
@@ -1001,6 +995,13 @@ function App() {
                 <MainMaster>
                   <ProtectedRoute>
                     <FireSafetyLanding />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/fire-safety/:section/:sub" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <UnderConstruction />
                   </ProtectedRoute>
                 </MainMaster>
               } />

@@ -312,7 +312,7 @@ export const EDOBReportRecipients: React.FC = () => {
       type: PDFReportType.DAILY_BRIEF,
       name: 'eDOB Daily Brief Report',
       description: 'Emergency & Standby Incidents Daily Brief',
-      path: '/control/daily-occurrence-book/reports'
+      path: '/control/daily-occurrence-book/emergency-reports'
     },
     {
       type: PDFReportType.EMERGENCY_INCIDENTS,

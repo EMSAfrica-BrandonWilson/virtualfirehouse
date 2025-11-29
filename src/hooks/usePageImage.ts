@@ -61,6 +61,12 @@ export const usePageImage = (pageName: string, fallbackImagePath?: string): UseP
       setLoading(true);
       setError(null);
 
+      if (fallbackImagePath) {
+        setImageUrl(fallbackImagePath);
+        setImage(null);
+        return;
+      }
+
       // Invoke the get-page-image edge function using Supabase client
       const supabase = getSupabaseClient();
       const { data, error: functionError } = await supabase.functions.invoke('get-page-image', {

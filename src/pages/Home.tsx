@@ -142,15 +142,15 @@ export const Home: React.FC = () => {
         <FlexRow>
           <Column $width="48%">
             <SubTitle id="about-fire-brigades">
-              About Fire Brigades, Fire Departments and
+              About Fire Brigades, Fire Departments and Fire Services
             </SubTitle>
             <Paragraph>
-              A Fire Brigade, Department, or Service is a public or private organization providing fire protection for municipalities or districts, staffed by career firefighters, volunteers, or both. The first fire department originated in ancient Rome, where firefighters patrolled with authority to enforce fire codes. Insurance companies later formed fire departments in the 18th century.
+              A Fire Brigade, Fire Department, or Fire Service (used interchangeably) is a public or private organization providing fire protection for municipalities or districts, staffed by career firefighters, volunteers, or both. The first fire department originated in ancient Rome, where firefighters patrolled with authority to enforce fire codes. Insurance companies later formed fire departments in the 18th century.
             </Paragraph>
           </Column>
           <Column $width="48%">
             <SubTitle>
-              Fire Services
+              ...
             </SubTitle>
             <Paragraph>
               Benjamin Franklin, considered the father of fire departments in Western culture, established the Union Volunteer Fire Company in Philadelphia in 1736. Boston created America's first publicly funded fire department in 1679. By the late 19th century, central command became essential as competing fire companies would dispute over uninsured properties, leading to devastating fires and loss of life.
