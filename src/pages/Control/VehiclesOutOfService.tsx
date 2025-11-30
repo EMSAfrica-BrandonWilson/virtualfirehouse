@@ -762,7 +762,7 @@ export default function VehiclesOutOfService() {
       setLoading(true);
       setError(null);
 
-      const currentDate = getCurrentDate();
+      const currentDate = selectedDate;
       console.log('Loading vehicles for date:', currentDate);
 
       // Add timestamp to prevent caching
@@ -1018,7 +1018,7 @@ export default function VehiclesOutOfService() {
       console.log('Current user:', user);
       console.log('User profile:', userProfile);
 
-      const currentDate = getCurrentDate();
+      const currentDate = selectedDate;
       console.log('Current date:', currentDate);
 
       // Try direct Supabase query first (bypass edge function)
@@ -1554,6 +1554,14 @@ export default function VehiclesOutOfService() {
       setError(err.message || 'Failed to generate PDF');
     }
   };
+
+  // Load data when selectedDate changes
+  useEffect(() => {
+    if (user) {
+      console.log('=== Date changed, reloading data for:', selectedDate);
+      loadDailyRecord();
+    }
+  }, [selectedDate, user]);
 
   if (authLoading) {
     return (
