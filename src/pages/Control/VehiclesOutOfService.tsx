@@ -1203,7 +1203,8 @@ export default function VehiclesOutOfService() {
 
     try {
       const startDate = new Date(outOfServiceDate);
-      const today = new Date();
+      // Use selectedDate instead of today for accurate historical calculations
+      const endDate = new Date(selectedDate);
 
       // Check if the date is valid
       if (isNaN(startDate.getTime())) {
@@ -1211,7 +1212,7 @@ export default function VehiclesOutOfService() {
       }
 
       // Calculate difference in milliseconds
-      const diffTime = today.getTime() - startDate.getTime();
+      const diffTime = endDate.getTime() - startDate.getTime();
 
       // Convert to days
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
