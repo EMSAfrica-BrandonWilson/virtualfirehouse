@@ -526,6 +526,10 @@ export const EDOBReportRecipients: React.FC = () => {
   const handleCloseDuplicateModal = () => {
     setShowDuplicateModal(false);
     setDuplicateRecipientInfo(null);
+    // Clear the form when closing the duplicate modal
+    setSelectedStaff(null);
+    setSelectedReport('');
+    setSearchTerm('');
   };
 
   const handleSelectRecipient = (recipientId: string) => {
