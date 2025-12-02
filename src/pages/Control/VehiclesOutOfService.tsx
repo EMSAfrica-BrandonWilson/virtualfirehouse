@@ -55,12 +55,6 @@ const Divider = styled.hr`
   margin: 15px 0;
 `;
 
-const Paragraph = styled.p`
-  margin-bottom: 8px;
-  line-height: 1.6;
-  color: #333;
-`;
-
 const SummaryCard = styled.div`
   background: white;
   border: 2px solid #f44336;
@@ -96,62 +90,11 @@ const CountNumber = styled.div<{ $isTotal?: boolean }>`
   width: 100%;
 `;
 
-const StatusChip = styled.span<{ status: string }>`
-  background-color: ${props => {
-    const status = props.status.toLowerCase();
-    switch (status) {
-      case 'out of service':
-        return '#f44336';
-      case 'maintenance':
-        return '#ff9800';
-      case 'repair':
-        return '#2196f3';
-      case 'at station':
-        return '#ff5722';
-      case 'in workshop':
-        return '#9c27b0';
-      case 'operational':
-        return '#4caf50';
-      case 'on standby':
-        return '#ffeb3b';
-      case 'in service':
-        return '#4caf50';
-      default:
-        return '#757575';
-    }
-  }};
-  color: ${props => {
-    const status = props.status.toLowerCase();
-    if (status === 'on standby' || status === 'operational' || status === 'in service') return '#333';
-    return 'white';
-  }};
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: bold;
-`;
-
 const TableContainer = styled.div`
   overflow-x: auto;
   margin: 20px 0;
   border: 2px solid #f44336;
   border-radius: 8px;
-  
-  table {
-    transition: none;
-  }
-  
-  th {
-    transition: none;
-  }
-  
-  thead {
-    transition: none;
-  }
-  
-  tr {
-    transition: none;
-  }
 `;
 
 const StyledTable = styled.table`
@@ -164,15 +107,6 @@ const StyledTable = styled.table`
 const TableHeader = styled.thead`
   background-color: #f44336;
   color: white;
-  
-  tr {
-    background-color: #f44336 !important;
-    transition: none;
-    
-    &:hover {
-      background-color: #f44336 !important;
-    }
-  }
 `;
 
 const SortableHeaderCell = styled.th<{ $isActive?: boolean }>`
@@ -245,15 +179,9 @@ const TableHeaderCell = styled.th`
   background-color: #f44336;
   color: white;
   font-weight: bold;
-  transition: none;
   
   &:last-child {
     border-right: none;
-  }
-  
-  &:hover {
-    background-color: #f44336;
-    color: white;
   }
 `;
 
@@ -282,13 +210,6 @@ const SuccessAlert = styled.div`
   padding: 15px;
   border-radius: 8px;
   margin: 15px 0;
-`;
-
-const FooterSection = styled.div`
-  background-color: #f9f9f9;
-  border: 1px solid #e0e0e0;
-  padding: 15px;
-  border-radius: 8px;
 `;
 
 const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' | 'success' }>`
@@ -325,6 +246,12 @@ const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' | 'succe
     }
   }};
   }
+  
+  &:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    transform: none;
+  }
 `;
 
 const MaintenanceTypeSelect = styled.select`
@@ -336,42 +263,35 @@ const MaintenanceTypeSelect = styled.select`
   
   &:focus {
     outline: none;
-    border-color: #1177BB;
+    border-color: #f44336;
+  }
+  
+  &:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
   }
 `;
 
 const ReasonTextArea = styled.textarea`
   width: 100%;
-  padding: 4px 8px;
+  padding: 8px;
   border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 14px;
   resize: vertical;
-  min-height: 40px;
+  min-height: 60px;
   font-family: inherit;
   
   &:focus {
     outline: none;
-    border-color: #1177BB;
+    border-color: #f44336;
   }
-`;
-
-const EditButton = styled.button`
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  margin-top: 4px;
   
-  &:hover {
-    background-color: #218838;
+  &:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
   }
 `;
-
-
 
 interface Vehicle {
   id: string;
@@ -426,6 +346,11 @@ export default function VehiclesOutOfService() {
     return today.toISOString().split('T')[0];
   });
 
+  // Helper function to get current date
+  const getCurrentDate = (): string => {
+    return selectedDate;
+  };
+
   // Sorting function
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -462,12 +387,11 @@ export default function VehiclesOutOfService() {
       let aValue = a[sortConfig.key as keyof Vehicle];
       let bValue = b[sortConfig.key as keyof Vehicle];
 
-      // Handle call_sign specifically - extract numeric part for proper sorting
+      // Handle call_sign specifically
       if (sortConfig.key === 'call_sign') {
         aValue = a.call_sign || a.vehicle_number || '';
         bValue = b.call_sign || b.vehicle_number || '';
 
-        // Extract letters and numbers for proper alphanumeric sorting
         const aMatch = (aValue as string).match(/^([A-Za-z]+)(\d+)$/);
         const bMatch = (bValue as string).match(/^([A-Za-z]+)(\d+)$/);
 
@@ -475,21 +399,18 @@ export default function VehiclesOutOfService() {
           const [, aLetters, aNumbers] = aMatch;
           const [, bLetters, bNumbers] = bMatch;
 
-          // First compare letters
           if (aLetters !== bLetters) {
             return sortConfig.direction === 'asc'
               ? aLetters.localeCompare(bLetters)
               : bLetters.localeCompare(aLetters);
           }
 
-          // Then compare numbers
           const aNum = parseInt(aNumbers, 10);
           const bNum = parseInt(bNumbers, 10);
           return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
         }
       }
 
-      // Default string comparison
       const aStr = String(aValue || '').toLowerCase();
       const bStr = String(bValue || '').toLowerCase();
 
@@ -501,7 +422,7 @@ export default function VehiclesOutOfService() {
     });
   };
 
-  // Memoized calculations for flash cards to prevent infinite re-renders
+  // Memoized calculations for flash cards
   const vehicleCounts = useMemo(() => {
     if (!vehicles || !allVehicles) return {
       commandOutOfService: 0,
@@ -539,693 +460,31 @@ export default function VehiclesOutOfService() {
     };
   }, [vehicles, allVehicles]);
 
-  // Memoized sorted vehicles to prevent infinite re-renders
+  // Memoized sorted vehicles
   const sortedVehicles = useMemo(() => {
     return getSortedVehicles();
   }, [vehicles, sortConfig]);
 
-  // Get current date in YYYY-MM-DD format
-  const getCurrentDate = () => {
-    return new Date().toISOString().split('T')[0];
-  };
-
-  // Get stored authentication token
-  const getStoredToken = () => {
-    // Try multiple possible token storage locations
-    const token = localStorage.getItem('supabase.auth.token') ||
-      sessionStorage.getItem('supabase.auth.token') ||
-      localStorage.getItem('sb-yhrecxzygcapozirquzw-auth-token') ||
-      sessionStorage.getItem('sb-yhrecxzygcapozirquzw-auth-token');
-
-    console.log('Token retrieval attempt:', token ? 'Token found' : 'No token found');
-    return token;
-  };
-
-  // API functions for database operations
-  const fetchDailyRecord = async (date: string) => {
-    try {
-      console.log('=== DEBUG: fetchDailyRecord called with date:', date);
-
-      const { data, error } = await supabase
-        .from('daily_vehicle_records')
-        .select('*')
-        .eq('record_date', date)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('Error fetching daily record:', error);
-        throw error;
-      }
-
-      console.log('Daily record found:', !!data);
-      if (data) {
-        console.log('Record data:', {
-          id: data.id,
-          record_date: data.record_date,
-          vehicles_count: data.vehicles_data?.length || 0
-        });
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error in fetchDailyRecord:', error);
-      throw error;
-    }
-  };
-
-  const saveDailyRecord = async (recordDate: string, vehiclesData: Vehicle[]) => {
-    try {
-      if (!user) throw new Error('User not authenticated');
-
-      console.log('=== Starting saveDailyRecord ===');
-      console.log('Record date:', recordDate);
-      console.log('Vehicles count:', vehiclesData.length);
-      console.log('User ID:', user.id);
-
-      // Log sample vehicle data
-      if (vehiclesData.length > 0) {
-        console.log('Sample vehicle data:', {
-          call_sign: vehiclesData[0].call_sign,
-          maintenance_type: vehiclesData[0].maintenance_type,
-          reason_text: vehiclesData[0].reason_text
-        });
-      }
-
-      // First, check if a record already exists for this date
-      const { data: existingRecord, error: checkError } = await supabase
-        .from('daily_vehicle_records')
-        .select('id')
-        .eq('record_date', recordDate)
-        .single();
-
-      if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error('Error checking for existing record:', checkError);
-        throw new Error(`Failed to check existing record: ${checkError.message}`);
-      }
-
-      let result;
-      if (existingRecord) {
-        console.log('Record already exists for date:', recordDate, 'Updating existing record...');
-        // Update existing record
-        const updateData = {
-          vehicles_data: vehiclesData,
-          updated_by: user.id,
-          updated_at: new Date().toISOString()
-        };
-
-        const { data, error } = await supabase
-          .from('daily_vehicle_records')
-          .update(updateData)
-          .eq('record_date', recordDate)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('=== Supabase update error ===', error);
-          throw new Error(`Failed to update record: ${error.message}`);
-        }
-
-        result = data;
-        console.log('=== Record updated successfully ===');
-      } else {
-        console.log('No existing record found for date:', recordDate, 'Creating new record...');
-        // Create new record
-        const insertData = {
-          record_date: recordDate,
-          vehicles_data: vehiclesData,
-          created_by: user.id,
-          updated_by: user.id
-        };
-
-        const { data, error } = await supabase
-          .from('daily_vehicle_records')
-          .insert(insertData)
-          .select()
-          .single();
-
-        if (error) {
-          console.error('=== Supabase insert error ===', error);
-          throw new Error(`Failed to save record: ${error.message}`);
-        }
-
-        result = data;
-        console.log('=== Record created successfully ===');
-      }
-
-      console.log('Saved/Updated record ID:', result.id);
-      console.log('Saved/Updated record date:', result.record_date);
-      console.log('Saved/Updated vehicles count:', result.vehicles_data?.length || 0);
-
-      return result;
-    } catch (error) {
-      console.error('=== Error saving/updating daily record ===', error);
-      throw error;
-    }
-  };
-
-  const updateDailyRecord = async (recordDate: string, vehiclesData: Vehicle[]) => {
-    try {
-      if (!user) throw new Error('User not authenticated');
-
-      console.log('=== Starting updateDailyRecord ===');
-      console.log('Record date:', recordDate);
-      console.log('Vehicles count:', vehiclesData.length);
-      console.log('User ID:', user.id);
-
-      // Log sample vehicle data
-      if (vehiclesData.length > 0) {
-        console.log('Sample vehicle data:', {
-          call_sign: vehiclesData[0].call_sign,
-          maintenance_type: vehiclesData[0].maintenance_type,
-          reason_text: vehiclesData[0].reason_text
-        });
-      }
-
-      const updateData = {
-        vehicles_data: vehiclesData,
-        updated_by: user.id,
-        updated_at: new Date().toISOString()
-      };
-
-      console.log('Update data prepared:', {
-        vehicles_data_length: updateData.vehicles_data.length,
-        updated_by: updateData.updated_by,
-        updated_at: updateData.updated_at
-      });
-
-      const { data, error } = await supabase
-        .from('daily_vehicle_records')
-        .update(updateData)
-        .eq('record_date', recordDate)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('=== Supabase update error ===', error);
-        console.error('Error code:', error.code);
-        console.error('Error message:', error.message);
-        console.error('Error details:', error.details);
-        throw new Error(`Failed to update record: ${error.message}`);
-      }
-
-      console.log('=== Record updated successfully ===');
-      console.log('Updated record ID:', data.id);
-      console.log('Updated record date:', data.record_date);
-      console.log('Updated vehicles count:', data.vehicles_data?.length || 0);
-
-      return data;
-    } catch (error) {
-      console.error('=== Error updating daily record ===', error);
-      throw error;
-    }
-  };
-
-  // Load assignments for totals (status from station_assignments)
-  const loadAllAssignmentsForDate = async (date: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('03_ecc_02_duty_roster_01_station_assignments')
-        .select('*')
-        .eq('assignment_date', date)
-        .order('call_sign', { ascending: true });
-      if (error) throw error;
-      return Array.isArray(data) ? data : [];
-    } catch (e) {
-      console.error('Error loading all assignments for totals:', e);
-      return [];
-    }
-  };
-
-  // Load vehicles from Supabase - Get complete list from vehicle_assignments for current date
-  const loadVehicles = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const currentDate = selectedDate;
-      console.log('Loading vehicles for date:', currentDate);
-
-      // Add timestamp to prevent caching
-      const timestamp = new Date().getTime();
-
-      // Calculate 7 days ago date first
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
-
-      // Load all assignments for today to compute totals by status
-      const allAssignmentsToday = await loadAllAssignmentsForDate(currentDate);
-      const uniqueAll = (allAssignmentsToday || []).filter((item, idx, arr) => {
-        const key = (item.call_sign || '').toString().trim().toUpperCase();
-        return arr.findIndex(x => (x.call_sign || '').toString().trim().toUpperCase() === key) === idx;
-      });
-      setAllVehicles(uniqueAll);
-
-      // Load vehicle assignments data from the vehicle_assignments table for out of service vehicles
-      console.log('Loading vehicle assignments for out of service vehicles...');
-
-      const { data: assignments, error: assignmentsError } = await supabase
-        .from('03_ecc_02_duty_roster_01_station_assignments')
-        .select(`
-          *,
-          vehicle_id
-        `)
-        .eq('assignment_date', currentDate)
-        .eq('status', 'Out of Service')
-        .order('updated_at', { ascending: false }); // Get most recent updates first
-
-      if (assignmentsError) {
-        console.error('Error loading assignments:', assignmentsError);
-        throw assignmentsError;
-      }
-
-      console.log('Assignments loaded:', assignments?.length || 0, 'out of service vehicles today');
-
-      // Debug: Check if reason fields are present in the out of service assignments
-      if (assignments && assignments.length > 0) {
-        console.log('Sample out of service assignment:', {
-          first: assignments[0],
-          has_notes: 'notes' in assignments[0],
-          notes_value: assignments[0].notes,
-          updated_at: assignments[0].updated_at
-        });
-      }
-
-      // Load existing daily record to get updated maintenance information
-      console.log('Loading existing daily record for maintenance information...');
-      const { data: existingRecord, error: recordError } = await supabase
-        .from('daily_vehicle_records')
-        .select('*')
-        .eq('record_date', currentDate)
-        .single();
-
-      if (recordError && recordError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.log('Error loading daily record (but continuing):', recordError);
-      }
-
-      console.log('Existing daily record found:', !!existingRecord);
-      if (existingRecord) {
-        console.log('Existing record vehicles count:', existingRecord.vehicles_data?.length || 0);
-      }
-
-      // Remove duplicate vehicles (same call_sign) and keep only the most recent one
-      const uniqueAssignments = assignments?.reduce((acc: any[], assignment: any) => {
-        const existingIndex = acc.findIndex(a => a.call_sign === assignment.call_sign);
-        if (existingIndex === -1) {
-          acc.push(assignment);
-        } else if (new Date(assignment.updated_at) > new Date(acc[existingIndex].updated_at)) {
-          acc[existingIndex] = assignment;
-        }
-        return acc;
-      }, []) || [];
-
-      console.log('Unique assignments after deduplication:', uniqueAssignments.length, 'vehicles');
-
-      // Debug: Log the first assignment to see available date fields
-      if (uniqueAssignments.length > 0) {
-        console.log('First assignment object:', uniqueAssignments[0]);
-        console.log('Available date fields:', {
-          created_at: uniqueAssignments[0].created_at,
-          updated_at: uniqueAssignments[0].updated_at,
-          assignment_date: uniqueAssignments[0].assignment_date
-        });
-
-        // Test the calculation with the actual data
-        const testAssignment = uniqueAssignments[0];
-        const testDate = testAssignment.updated_at || testAssignment.created_at;
-        console.log('Testing with actual assignment date:', testDate);
-        const testResult = getDaysOutOfService(testDate);
-        console.log('Test result:', testResult, 'days out');
-      }
-
-      // Transform data to match Vehicle interface
-      const vehiclesOutOfService: Vehicle[] = uniqueAssignments.map((assignment: any) => {
-
-        // Debug: Log the assignment dates before transformation
-        console.log('Transforming assignment:', {
-          call_sign: assignment.call_sign,
-          created_at: assignment.created_at,
-          updated_at: assignment.updated_at,
-          assignment_date: assignment.assignment_date,
-          status: assignment.status
-        });
-
-        // Look for existing maintenance data in the daily record
-        let maintenanceType = 'Planned Maintenance' as 'Corrective Maintenance' | 'Planned Maintenance';
-        let reasonText = assignment.notes || '';
-
-        if (existingRecord && existingRecord.vehicles_data) {
-          const existingVehicle = existingRecord.vehicles_data.find((v: any) => v.call_sign === assignment.call_sign);
-          if (existingVehicle) {
-            maintenanceType = existingVehicle.maintenance_type || maintenanceType;
-            reasonText = existingVehicle.reason_text || reasonText;
-            console.log(`Found existing maintenance data for ${assignment.call_sign}:`, {
-              maintenanceType,
-              reasonText: reasonText?.substring(0, 50) + '...'
-            });
-          }
-        }
-
-        return {
-          id: assignment.id || `temp-${Math.random()}`,
-          vehicle_number: assignment.call_sign || 'N/A',
-          vehicle_type: assignment.vehicle_type || 'N/A',
-          status: assignment.status || 'Out of Service',
-          readiness: assignment.readiness || 'N/A',
-          assigned_station: assignment.station_assignment || 'Unassigned',
-          driver_name: assignment.crew_members || '',
-          call_sign: assignment.call_sign || '',
-          vehicle_make: assignment.vehicle_make || '',
-          vehicle_model: assignment.vehicle_model || '',
-          out_of_service_reason: assignment.readiness === 'In Workshop' ? 'In Workshop for Maintenance' :
-            assignment.readiness === 'At Station' ? 'At Station' : 'Out of Service',
-          // Use assignment_date as it's the date when the vehicle was marked out of service
-          // Fallback to updated_at then created_at if assignment_date is not available
-          out_of_service_date: assignment.assignment_date || assignment.updated_at || assignment.created_at || new Date().toISOString(),
-          in_service_date: assignment.status === 'In Service' ? assignment.updated_at || new Date().toISOString() : undefined,
-          estimated_return_date: assignment.updated_at || null,
-          maintenance_notes: `Status: ${assignment.status} | Readiness: ${assignment.readiness} | Station: ${assignment.station_assignment}`,
-          maintenance_type: maintenanceType,
-          reason_text: reasonText,
-          created_at: assignment.created_at || new Date().toISOString(),
-          updated_at: assignment.updated_at || new Date().toISOString()
-        };
-      }).filter(Boolean) || [];
-
-      console.log('Transformed vehicles:', vehiclesOutOfService.length, 'vehicles');
-
-      // Debug: Check reason_text values for first few vehicles
-      if (vehiclesOutOfService.length > 0) {
-        vehiclesOutOfService.slice(0, 3).forEach((vehicle, index) => {
-          console.log(`Vehicle ${index + 1} reason data:`, {
-            call_sign: vehicle.call_sign,
-            reason_text: vehicle.reason_text,
-            has_reason_text: !!vehicle.reason_text
-          });
-        });
-      }
-
-      // Debug: Log the first transformed vehicle to see the final data
-      if (vehiclesOutOfService.length > 0) {
-        console.log('First transformed vehicle:', {
-          call_sign: vehiclesOutOfService[0].call_sign,
-          out_of_service_date: vehiclesOutOfService[0].out_of_service_date,
-          in_service_date: vehiclesOutOfService[0].in_service_date,
-          status: vehiclesOutOfService[0].status,
-          maintenance_type: vehiclesOutOfService[0].maintenance_type,
-          reason_text: vehiclesOutOfService[0].reason_text
-        });
-      }
-      const uniqueOOS = (vehiclesOutOfService || []).filter((item, idx, arr) => {
-        const key = (item.call_sign || '').toString().trim().toUpperCase();
-        return arr.findIndex(x => (x.call_sign || '').toString().trim().toUpperCase() === key) === idx;
-      });
-      setVehicles(uniqueOOS);
-      setLastUpdated(new Date()); // Update last updated timestamp
-
-      // Log vehicle breakdown by category for debugging - using today's assignments (same as Vehicles In Service)
-      const fireVehicles = uniqueAll.filter(v => (v.call_sign || '').toUpperCase().startsWith('F'));
-      const commandVehicles = uniqueAll.filter(v => (v.call_sign || '').toUpperCase().startsWith('C'));
-      const ambulances = uniqueAll.filter(v => (v.call_sign || '').toLowerCase().startsWith('med'));
-      const utilityVehicles = uniqueAll.filter(v => (v.call_sign || '').toUpperCase().startsWith('X'));
-
-      console.log('Vehicle breakdown (today\'s assignments):');
-      console.log('- Fire Vehicles (F*):', fireVehicles.length, 'total,', vehiclesOutOfService.filter(v => (v.call_sign || '').toUpperCase().startsWith('F')).length, 'out of service');
-      console.log('- Command Vehicles (C*):', commandVehicles.length, 'total,', vehiclesOutOfService.filter(v => (v.call_sign || '').toUpperCase().startsWith('C')).length, 'out of service');
-      console.log('- Ambulances (Med*):', ambulances.length, 'total,', vehiclesOutOfService.filter(v => (v.call_sign || '').toLowerCase().startsWith('med')).length, 'out of service');
-      console.log('- Utility Vehicles (X*):', utilityVehicles.length, 'total,', vehiclesOutOfService.filter(v => (v.call_sign || '').toUpperCase().startsWith('X')).length, 'out of service');
-      console.log('- Total vehicles:', uniqueAll.length, 'total,', vehiclesOutOfService.length, 'out of service');
-
-    } catch (err: any) {
-      console.error('Error in loadVehicles:', err);
-      setError(err.message || 'Failed to load vehicles out of service');
-      setVehicles([]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Minimal loading function to test basic functionality
-  const loadMinimalData = async () => {
-    try {
-      console.log('=== DEBUG: Starting minimal data load ===');
-      setLoading(true);
-      setError(null);
-
-      // Set minimal mock data to test rendering
-      const mockVehicles: Vehicle[] = [
-        {
-          id: 'test-1',
-          vehicle_number: 'F01',
-          vehicle_type: 'Fire Truck',
-          status: 'Out of Service',
-          readiness: 'In Workshop',
-          assigned_station: 'Station 1',
-          call_sign: 'F01',
-          out_of_service_reason: 'Test maintenance',
-          out_of_service_date: new Date().toISOString(),
-          maintenance_type: 'Planned Maintenance',
-          reason_text: 'Test reason',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ];
-
-      const mockAllVehicles = [
-        { call_sign: 'F01', vehicle_type: 'Fire Truck' },
-        { call_sign: 'F02', vehicle_type: 'Fire Engine' },
-        { call_sign: 'C01', vehicle_type: 'Command Vehicle' },
-        { call_sign: 'Med01', vehicle_type: 'Ambulance' },
-        { call_sign: 'X01', vehicle_type: 'Utility Vehicle' }
-      ];
-
-      setVehicles(mockVehicles);
-      setAllVehicles(mockAllVehicles);
-
-      console.log('Minimal data load completed');
-    } catch (err: any) {
-      console.error('Error in minimal load:', err);
-      setError(`Minimal load failed: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Load daily record from database - Try direct Supabase query first
-  const loadDailyRecord = async () => {
-    try {
-      console.log('=== DEBUG: Starting loadDailyRecord ===');
-      console.log('Current user:', user);
-      console.log('User profile:', userProfile);
-
-      const currentDate = selectedDate;
-      console.log('Current date:', currentDate);
-
-      // Try direct Supabase query first (bypass edge function)
-      console.log('Attempting direct Supabase query...');
-      const { data: records, error: dbError } = await supabase
-        .from('daily_vehicle_records')
-        .select('*')
-        .eq('record_date', currentDate)
-        .single();
-
-      if (dbError) {
-        console.log('Direct query failed or no record found, skipping edge function and loading vehicles directly...');
-        console.log('DB Error details:', dbError);
-
-        // Skip edge function due to 401 error, just load vehicles directly
-        console.log('No record found, calling loadVehicles...');
-        await loadVehicles();
-      } else if (records) {
-        console.log('Direct query successful:', records);
-
-        // Process the direct query result
-        setCurrentRecord(records);
-        setVehicles(records.vehicles_data || []);
-
-        // Initialize maintenance types from the record
-        const types: { [key: string]: 'Corrective Maintenance' | 'Planned Maintenance' } = {};
-        (records.vehicles_data || []).forEach(vehicle => {
-          if (vehicle.maintenance_type) {
-            types[vehicle.id] = vehicle.maintenance_type;
-          }
-        });
-        setMaintenanceTypes(types);
-        console.log('Direct query processing complete');
-      } else {
-        console.log('No record found via direct query, calling loadVehicles...');
-        await loadVehicles();
-      }
-    } catch (err: any) {
-      console.error('Error in loadDailyRecord:', err);
-      console.error('Error details:', {
-        message: err.message,
-        stack: err.stack,
-        name: err.name
-      });
-
-      // If no record found, load current vehicles
-      if (err.message && err.message.includes('No record found')) {
-        console.log('No record found error, calling loadVehicles...');
-        await loadVehicles();
-      } else if (err.message && err.message.includes('401')) {
-        console.log('401 authentication error, loading vehicles directly...');
-        await loadVehicles();
-      } else {
-        console.log('Setting error state...');
-        setError(err.message || 'Failed to load daily record');
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (user) {
-      console.log('=== DEBUG: useEffect triggered with user:', user);
-
-      // Start with minimal data to ensure page renders
-      loadMinimalData();
-
-      // Then try to load real data in background
-      const loadRealData = async () => {
-        try {
-          console.log('Attempting to load daily record...');
-          await loadDailyRecord();
-          console.log('Daily record loaded successfully');
-        } catch (error) {
-          console.error('Failed to load daily record, falling back to direct vehicle loading:', error);
-
-          // Fallback: directly load vehicles from vehicle_assignments table
-          try {
-            console.log('Starting fallback loading...');
-            setLoading(true);
-            setError(null);
-
-            await loadVehicles();
-            console.log('Fallback loading completed');
-          } catch (fallbackError) {
-            console.error('Fallback loading also failed:', fallbackError);
-            setError('Unable to load vehicles. Please check your connection and try refreshing.');
-          } finally {
-            setLoading(false);
-          }
-        }
-      };
-
-      // Delay real data loading to ensure page renders first
-      setTimeout(() => {
-        loadRealData();
-      }, 1000);
-    } else {
-      console.log('No user found, skipping load');
-    }
-  }, [user]);
-
-  // Optional: Add a visibility change listener to refresh data when the page becomes visible
-  // This is now disabled to prevent excessive refreshes
-  /*
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && user) {
-        console.log('Page became visible, refreshing data...');
-        handleRefreshData();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [user]);
-  */
-
-  // Optional: Add window focus event listener to refresh data when user returns to the tab
-  // This is now disabled to prevent excessive refreshes
-  /*
-  useEffect(() => {
-    const handleWindowFocus = () => {
-      if (user) {
-        console.log('Window focused, refreshing data...');
-        handleRefreshData();
-      }
-    };
-
-    window.addEventListener('focus', handleWindowFocus);
-    return () => window.removeEventListener('focus', handleWindowFocus);
-  }, [user]);
-  */
-
-  // Optional: Add periodic refresh every 5 minutes when the page is active
-  // This is now disabled to prevent excessive refreshes - use manual refresh instead
-  /*
-  useEffect(() => {
-    let refreshInterval: NodeJS.Timeout;
-    
-    if (user && !document.hidden) {
-      refreshInterval = setInterval(() => {
-        console.log('Periodic refresh triggered...');
-        handleRefreshData();
-      }, 300000); // Refresh every 5 minutes
-    }
-
-    return () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-    };
-  }, [user]);
-  */
-
-  // Test the calculation function - run only once on mount
-  useEffect(() => {
-    console.log('=== Testing Days Out Calculation ===');
-
-    // Test with various date formats
-    const testCases = [
-      '2024-11-12T10:00:00Z', // ISO string
-      '2024-11-12', // Date only
-      new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // Yesterday
-      new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-    ];
-
-    testCases.forEach((testDate, index) => {
-      const result = getDaysOutOfService(testDate);
-      console.log(`Test ${index + 1} - Input: "${testDate}", Result: ${result} days`);
-    });
-
-    // Manual calculation test
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-    const manualResult = Math.ceil((new Date().getTime() - twoDaysAgo.getTime()) / (1000 * 60 * 60 * 24));
-    console.log('Manual calculation for 2 days ago:', manualResult, 'days');
-    console.log('Function result for 2 days ago:', getDaysOutOfService(twoDaysAgo.toISOString()));
-  }, []); // Empty dependency array to run only once
-
-  const getDaysOutOfService = (outOfServiceDate?: string, inServiceDate?: string) => {
+  const getDaysOutOfService = (outOfServiceDate?: string) => {
     if (!outOfServiceDate) return 'N/A';
 
     try {
       const startDate = new Date(outOfServiceDate);
-      // Use selectedDate instead of today for accurate historical calculations
       const endDate = new Date(selectedDate);
 
-      // Check if the date is valid
       if (isNaN(startDate.getTime())) {
         return 'N/A';
       }
 
-      // Calculate difference in milliseconds
       const diffTime = endDate.getTime() - startDate.getTime();
-
-      // Convert to days
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      // Ensure we don't return negative days
       return Math.max(0, diffDays);
-
     } catch (error) {
       console.error('Error in getDaysOutOfService:', error);
       return 'N/A';
     }
   };
-
 
   const handleMaintenanceTypeChange = (vehicleId: string, newType: 'Corrective Maintenance' | 'Planned Maintenance') => {
     setMaintenanceTypes(prev => ({
@@ -1240,7 +499,6 @@ export default function VehiclesOutOfService() {
   };
 
   const handleReasonTextChange = (vehicleId: string, newReasonText: string) => {
-    console.log('handleReasonTextChange called:', { vehicleId, newReasonText });
     setVehicles(prev => prev.map(vehicle =>
       vehicle.id === vehicleId
         ? { ...vehicle, reason_text: newReasonText }
@@ -1248,7 +506,6 @@ export default function VehiclesOutOfService() {
     ));
   };
 
-  // Individual vehicle edit functions
   const handleIndividualEdit = (vehicleId: string) => {
     setEditingVehicleId(vehicleId);
   };
@@ -1258,74 +515,40 @@ export default function VehiclesOutOfService() {
       setError(null);
       setSuccess(null);
 
-      console.log('=== Starting individual vehicle update ===');
-      console.log('Vehicle ID:', vehicleId);
-      console.log('Current user:', user?.id);
-
-      // Find the vehicle being updated
       const vehicleToUpdate = vehicles.find(v => v.id === vehicleId);
       if (!vehicleToUpdate) {
         throw new Error('Vehicle not found');
       }
 
-      console.log('Vehicle to update:', {
-        call_sign: vehicleToUpdate.call_sign,
-        maintenance_type: vehicleToUpdate.maintenance_type,
-        reason_text: vehicleToUpdate.reason_text
-      });
-
-      // Update the specific vehicle in the database
       const currentDate = getCurrentDate();
-      console.log('Current date for record:', currentDate);
-
       const updatedVehicles = vehicles.map(vehicle =>
         vehicle.id === vehicleId
           ? {
             ...vehicle,
             maintenance_type: maintenanceTypes[vehicleId] || vehicle.maintenance_type || 'Planned Maintenance',
-            reason_text: vehicle.reason_text || '' // Ensure reason_text is preserved
+            reason_text: vehicle.reason_text || ''
           }
           : vehicle
       );
 
-      const updatedVehicle = updatedVehicles.find(v => v.id === vehicleId);
-      console.log('Updated vehicle data:', {
-        call_sign: updatedVehicle?.call_sign,
-        maintenance_type: updatedVehicle?.maintenance_type,
-        reason_text: updatedVehicle?.reason_text,
-        total_vehicles: updatedVehicles.length
-      });
-
-      console.log('Current record exists:', !!currentRecord);
-
       if (currentRecord) {
-        console.log('Updating existing record...');
-        const result = await updateDailyRecord(currentDate, updatedVehicles);
-        console.log('Update result:', !!result);
+        await updateDailyRecord(currentDate, updatedVehicles);
         setSuccess(`Vehicle ${vehicleToUpdate.call_sign || vehicleToUpdate.vehicle_number} updated successfully!`);
       } else {
-        console.log('Creating new record...');
-        const result = await saveDailyRecord(currentDate, updatedVehicles);
-        console.log('Save result:', !!result);
+        await saveDailyRecord(currentDate, updatedVehicles);
         setSuccess('Daily record updated successfully!');
       }
 
-      console.log('=== Individual update completed successfully ===');
-
-      // Exit individual edit mode
       setEditingVehicleId(null);
-      // Reload the record to get updated data
       await loadDailyRecord();
-
     } catch (err: any) {
-      console.error('=== Individual update failed ===', err);
+      console.error('Individual update failed:', err);
       setError(err.message || 'Failed to update vehicle');
     }
   };
 
   const handleIndividualCancel = (vehicleId: string) => {
     setEditingVehicleId(null);
-    // Optionally, you could reload the data to discard changes
   };
 
   const handleSaveRecord = async () => {
@@ -1337,23 +560,19 @@ export default function VehiclesOutOfService() {
       const vehiclesWithMaintenanceType = vehicles.map(vehicle => ({
         ...vehicle,
         maintenance_type: maintenanceTypes[vehicle.id] || 'Planned Maintenance',
-        reason_text: vehicle.reason_text || '' // Ensure reason_text is preserved
+        reason_text: vehicle.reason_text || ''
       }));
 
       if (currentRecord) {
-        // Update existing record
         await updateDailyRecord(currentDate, vehiclesWithMaintenanceType);
         setSuccess('Daily record updated successfully!');
       } else {
-        // Create new record
         await saveDailyRecord(currentDate, vehiclesWithMaintenanceType);
         setSuccess('Daily record saved successfully!');
       }
 
       setIsEditing(false);
-      // Reload the record to get updated data
       await loadDailyRecord();
-
     } catch (err: any) {
       setError(err.message || 'Failed to save record');
     }
@@ -1367,36 +586,34 @@ export default function VehiclesOutOfService() {
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    // Reload the record to reset any unsaved changes
     loadDailyRecord();
   };
 
-  // Force refresh to get latest data from database
   const handleRefreshData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log('=== Starting data refresh ===');
-      console.log('Current date:', getCurrentDate());
-      console.log('Refreshing from vehicle_assignments table...');
+      // Delete the current record to force a re-copy from previous valid data
+      const currentDate = getCurrentDate();
+      const { error: deleteError } = await supabase
+        .from('daily_vehicle_records')
+        .delete()
+        .eq('record_date', currentDate);
 
-      // Clear any cached data to ensure fresh load
+      if (deleteError) {
+        console.error('Error deleting current record:', deleteError);
+      } else {
+        console.log('Deleted current record to force refresh');
+      }
+
       setVehicles([]);
       setAllVehicles([]);
       setCurrentRecord(null);
 
-      // Always load fresh data from the vehicle_assignments table
-      // This ensures we get the latest Out of Service vehicles from the Vehicle Station Assignment form
-      await loadVehicles();
+      await loadDailyRecord();
 
-      // Clear any existing record to ensure we're working with live data
-      setCurrentRecord(null);
-      setIsEditing(false);
-
-      console.log('=== Data refresh completed ===');
-      setLastUpdated(new Date()); // Update timestamp after successful refresh
-
+      setLastUpdated(new Date());
     } catch (err: any) {
       console.error('Error during data refresh:', err);
       setError(err.message || 'Failed to refresh data');
@@ -1405,7 +622,6 @@ export default function VehiclesOutOfService() {
     }
   };
 
-  // Date navigation handlers
   const handlePrevDay = () => {
     const currentDate = new Date(selectedDate);
     currentDate.setDate(currentDate.getDate() - 1);
@@ -1418,6 +634,260 @@ export default function VehiclesOutOfService() {
     setSelectedDate(currentDate.toISOString().split('T')[0]);
   };
 
+  // Load all vehicle assignments for a specific date (for counting purposes)
+  const loadAllAssignmentsForDate = async (date: string) => {
+    const { data: allAssignments, error: allError } = await supabase
+      .from('03_ecc_02_duty_roster_01_station_assignments')
+      .select('*')
+      .eq('assignment_date', date)
+      .order('call_sign', { ascending: true });
+
+    if (allError) {
+      console.error('Error loading all assignments:', allError);
+      throw allError;
+    }
+
+    const sortedAllVehicles = (allAssignments || []).sort((a, b) => {
+      const callSignA = (a.call_sign || '').toUpperCase();
+      const callSignB = (b.call_sign || '').toUpperCase();
+      return callSignA.localeCompare(callSignB);
+    });
+
+    const uniqueAllVehicles = sortedAllVehicles.filter((item, idx, arr) => {
+      const key = (item.call_sign || '').toString().trim().toUpperCase();
+      return arr.findIndex(x => (x.call_sign || '').toString().trim().toUpperCase() === key) === idx;
+    });
+
+    setAllVehicles(uniqueAllVehicles);
+    return uniqueAllVehicles;
+  };
+
+  // Update an existing daily record
+  const updateDailyRecord = async (recordDate: string, vehiclesData: Vehicle[]) => {
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const updateData = {
+      vehicles_data: vehiclesData,
+      updated_by: user.id,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('daily_vehicle_records')
+      .update(updateData)
+      .eq('record_date', recordDate)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase update error:', error);
+      throw new Error(`Failed to update record: ${error.message}`);
+    }
+
+    setCurrentRecord(data);
+    return data;
+  };
+
+  // Save a new daily record
+  const saveDailyRecord = async (recordDate: string, vehiclesData: Vehicle[]) => {
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const { data: existingRecord, error: checkError } = await supabase
+      .from('daily_vehicle_records')
+      .select('id')
+      .eq('record_date', recordDate)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking for existing record:', checkError);
+      throw new Error(`Failed to check existing record: ${checkError.message}`);
+    }
+
+    if (existingRecord) {
+      return updateDailyRecord(recordDate, vehiclesData);
+    }
+
+    const insertData = {
+      record_date: recordDate,
+      vehicles_data: vehiclesData,
+      created_by: user.id,
+      updated_by: user.id
+    };
+
+    const { data, error } = await supabase
+      .from('daily_vehicle_records')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase insert error:', error);
+      throw new Error(`Failed to create record: ${error.message}`);
+    }
+
+    setCurrentRecord(data);
+    return data;
+  };
+
+  // Helper function to load vehicles from the daily record (PRIMARY SOURCE)
+  const loadVehiclesFromRecord = (record: DailyRecord) => {
+    console.log('loadVehiclesFromRecord called with:', record);
+
+    if (record.vehicles_data && Array.isArray(record.vehicles_data)) {
+      console.log('Raw vehicles_data:', record.vehicles_data);
+      const types: { [key: string]: 'Corrective Maintenance' | 'Planned Maintenance' } = {};
+
+      // Convert record vehicles to Vehicle objects
+      const vehiclesFromRecord: Vehicle[] = record.vehicles_data.map((rv: any) => {
+        // Ensure we have a stable ID if possible, or generate one
+        const vId = rv.id || `temp-${Math.random().toString(36).substr(2, 9)}`;
+
+        types[vId] = rv.maintenance_type || 'Planned Maintenance';
+
+        return {
+          id: vId,
+          vehicle_number: rv.vehicle_number || rv.call_sign || 'N/A',
+          vehicle_type: rv.vehicle_type || 'N/A',
+          status: rv.status || 'Out of Service',
+          readiness: rv.readiness || 'N/A',
+          assigned_station: rv.assigned_station || 'Unassigned',
+          driver_name: rv.driver_name || rv.crew_members || '',
+          call_sign: rv.call_sign || rv.vehicle_number || '',
+          vehicle_make: rv.vehicle_make || '',
+          vehicle_model: rv.vehicle_model || '',
+          out_of_service_date: rv.out_of_service_date,
+          in_service_date: rv.in_service_date,
+          estimated_return_date: rv.estimated_return_date,
+          maintenance_notes: rv.maintenance_notes || '',
+          maintenance_type: rv.maintenance_type || 'Planned Maintenance',
+          reason_text: rv.reason_text || '',
+          created_at: rv.created_at || new Date().toISOString(),
+          updated_at: rv.updated_at || new Date().toISOString()
+        };
+      });
+
+      console.log('Processed vehicles for display:', vehiclesFromRecord);
+      setVehicles(vehiclesFromRecord);
+      setMaintenanceTypes(types);
+    } else {
+      console.log('No vehicles_data found in record or invalid format');
+      setVehicles([]);
+    }
+  };
+
+  // Load daily record for the selected date - with automatic copying from previous day
+  const loadDailyRecord = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const currentDate = getCurrentDate();
+
+      // Load all vehicles for counting purposes (flash cards)
+      await loadAllAssignmentsForDate(currentDate);
+
+      // Load daily record for the selected date
+      const { data: record, error: recordError } = await supabase
+        .from('daily_vehicle_records')
+        .select('*')
+        .eq('record_date', currentDate)
+        .single();
+
+      if (recordError && recordError.code !== 'PGRST116') {
+        console.error('Error loading daily record:', recordError);
+      }
+
+      // If no record exists for this date, automatically copy from the most recent previous date
+      if (!record || recordError?.code === 'PGRST116') {
+        console.log(`No record found for ${currentDate} - attempting to copy from previous date`);
+
+        // Find the most recent record before this date that HAS DATA
+        // Fetch last 5 records to skip potential empty ones
+        const { data: previousRecords, error: prevError } = await supabase
+          .from('daily_vehicle_records')
+          .select('*')
+          .lt('record_date', currentDate)
+          .order('record_date', { ascending: false })
+          .limit(5);
+
+        if (!prevError && previousRecords && previousRecords.length > 0) {
+          // Find the first record that has non-empty vehicles_data
+          const previousRecord = previousRecords.find(r => r.vehicles_data && Array.isArray(r.vehicles_data) && r.vehicles_data.length > 0);
+
+          if (previousRecord) {
+            console.log(`Found previous record from ${previousRecord.record_date} with ${previousRecord.vehicles_data.length} vehicles - copying forward`);
+
+            // Copy the previous record to the current date
+            if (user) {
+              try {
+                // Deep copy the vehicles data to ensure no reference issues
+                const vehiclesToCopy = JSON.parse(JSON.stringify(previousRecord.vehicles_data));
+
+                const newRecordData = {
+                  record_date: currentDate,
+                  vehicles_data: vehiclesToCopy,
+                  created_by: user.id,
+                  updated_by: user.id,
+                  notes: `Auto-copied from ${previousRecord.record_date}`
+                };
+
+                const { data: newRecord, error: insertError } = await supabase
+                  .from('daily_vehicle_records')
+                  .insert(newRecordData)
+                  .select()
+                  .single();
+
+                if (!insertError && newRecord) {
+                  console.log(`Successfully created record for ${currentDate} from ${previousRecord.record_date}`);
+                  setCurrentRecord(newRecord);
+
+                  // Use the record data as primary source for vehicles
+                  loadVehiclesFromRecord(newRecord);
+                } else {
+                  console.error('Error creating new record:', insertError);
+                  setCurrentRecord(null);
+                  setVehicles([]);
+                }
+              } catch (copyError) {
+                console.error('Error copying previous record:', copyError);
+                setCurrentRecord(null);
+                setVehicles([]);
+              }
+            } else {
+              setCurrentRecord(null);
+              setVehicles([]);
+            }
+          } else {
+            console.log('No previous record with data found in the last 5 records');
+            setCurrentRecord(null);
+            setVehicles([]);
+          }
+        } else {
+          console.log('No previous records found to copy from');
+          setCurrentRecord(null);
+          setVehicles([]);
+        }
+      } else if (record) {
+        // Record exists for this date - use it as primary source
+        console.log(`Found existing record for ${currentDate}`);
+        setCurrentRecord(record);
+        loadVehiclesFromRecord(record);
+      } else {
+        setCurrentRecord(null);
+        setVehicles([]);
+      }
+    } catch (err: any) {
+      console.error('Error in loadDailyRecord:', err);
+      setError(err.message || 'Failed to load daily record');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const generatePDF = async () => {
     try {
       const doc = new jsPDF({
@@ -1426,7 +896,6 @@ export default function VehiclesOutOfService() {
         format: 'a4'
       });
 
-      // Use actual logged-in user data for PDF attribution
       const currentUser = {
         email: user?.email || '',
         profile: {
@@ -1435,15 +904,12 @@ export default function VehiclesOutOfService() {
         }
       };
 
-      // Get company logo
       const logoBase64 = await getCompanyLogo();
 
-      // Use memoized sorted vehicles for PDF generation
       const pdfSortedVehicles = [...vehicles].sort((a, b) => {
         const aCallSign = (a.call_sign || a.vehicle_number || '').toString();
         const bCallSign = (b.call_sign || b.vehicle_number || '').toString();
 
-        // Extract letters and numbers for proper alphanumeric sorting
         const aMatch = aCallSign.match(/^([A-Za-z]+)(\d+)$/);
         const bMatch = bCallSign.match(/^([A-Za-z]+)(\d+)$/);
 
@@ -1451,22 +917,18 @@ export default function VehiclesOutOfService() {
           const [, aLetters, aNumbers] = aMatch;
           const [, bLetters, bNumbers] = bMatch;
 
-          // First compare letters
           if (aLetters !== bLetters) {
             return aLetters.localeCompare(bLetters);
           }
 
-          // Then compare numbers
           const aNum = parseInt(aNumbers, 10);
           const bNum = parseInt(bNumbers, 10);
           return aNum - bNum;
         }
 
-        // Default string comparison
         return aCallSign.localeCompare(bCallSign);
       });
 
-      // Prepare table data with sorted vehicles
       const tableHeaders = ['Call Sign', 'Vehicle Type', 'Days Out', 'Maintenance Type', 'Out of Service Reason'];
       const tableData = pdfSortedVehicles.map(vehicle => [
         `${vehicle.vehicle_number || vehicle.call_sign || 'N/A'}\n${vehicle.vehicle_make} ${vehicle.vehicle_model}`.trim(),
@@ -1479,7 +941,6 @@ export default function VehiclesOutOfService() {
             if (isNaN(testDate.getTime())) return 'N/A';
             return getDaysOutOfService(date);
           } catch (error) {
-            console.error('Error calculating days out for vehicle:', vehicle.call_sign, error);
             return 'N/A';
           }
         })(),
@@ -1487,7 +948,6 @@ export default function VehiclesOutOfService() {
         vehicle.reason_text || 'N/A'
       ]);
 
-      // Setup VFH A4 standard PDF
       const vfhSetup = setupVFHStandardPDF({
         doc,
         logoBase64: logoBase64 || undefined,
@@ -1500,16 +960,14 @@ export default function VehiclesOutOfService() {
         }
       });
 
-      // Calculate optimal column widths for full page width (A4 landscape: 297mm width, minus margins)
-      const pageWidth = 297; // A4 landscape width in mm
-      const margin = 14; // Left and right margins (increased to prevent overflow)
-      const availableWidth = pageWidth - (margin * 2); // Available width for table: 269mm
+      const pageWidth = 297;
+      const margin = 14;
+      const availableWidth = pageWidth - (margin * 2);
 
-      // Generate table with optimized configuration for full width
       const tableConfig = {
         ...vfhSetup.tableConfig,
         startY: vfhSetup.tableStartY,
-        tableWidth: availableWidth, // Use full available width
+        tableWidth: availableWidth,
         headStyles: {
           fillColor: [244, 67, 54] as [number, number, number],
           textColor: 255,
@@ -1521,11 +979,11 @@ export default function VehiclesOutOfService() {
           cellPadding: 3
         },
         columnStyles: {
-          0: { cellWidth: availableWidth * 0.15, fontStyle: 'bold' as any }, // Call Sign (15%)
-          1: { cellWidth: availableWidth * 0.15 }, // Vehicle Type (15%)
-          2: { cellWidth: availableWidth * 0.10, halign: 'center' as any }, // Days Out (10%)
-          3: { cellWidth: availableWidth * 0.15 }, // Maintenance Type (15%)
-          4: { cellWidth: availableWidth * 0.45 } // Out of Service Reason (45%)
+          0: { cellWidth: availableWidth * 0.15, fontStyle: 'bold' as any },
+          1: { cellWidth: availableWidth * 0.15 },
+          2: { cellWidth: availableWidth * 0.10, halign: 'center' as any },
+          3: { cellWidth: availableWidth * 0.15 },
+          4: { cellWidth: availableWidth * 0.45 }
         },
         showHead: 'everyPage' as any,
         margin: { left: margin, right: margin, top: vfhSetup.tableStartY }
@@ -1537,29 +995,27 @@ export default function VehiclesOutOfService() {
         ...tableConfig
       });
 
-      // Instead of downloading, save PDF to sessionStorage and open in viewer
       const fileName = `vehicles-out-of-service-${getCurrentDate()}`;
       const pdfDataUri = doc.output('datauristring');
 
-      // Store the PDF data in sessionStorage
       sessionStorage.setItem(`pdf_${fileName}`, pdfDataUri);
-
-      // Store the source section for proper navigation context
       sessionStorage.setItem('pdf_source_section', location.pathname);
       sessionStorage.setItem('pdf_source_path', location.pathname);
 
-      // Navigate to PDF viewer in the middle column
       navigate(`/pdf-viewer/${encodeURIComponent(`pdf_${fileName}`)}`);
-
     } catch (err: any) {
       setError(err.message || 'Failed to generate PDF');
     }
   };
 
-  // Load data when selectedDate changes
   useEffect(() => {
     if (user) {
-      console.log('=== Date changed, reloading data for:', selectedDate);
+      loadDailyRecord();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
       loadDailyRecord();
     }
   }, [selectedDate, user]);
@@ -1569,9 +1025,6 @@ export default function VehiclesOutOfService() {
       <MainContent>
         <LoadingContainer>
           <div>Checking authentication...</div>
-          <div style={{ fontSize: '0.9rem', marginTop: '10px', color: '#666' }}>
-            Debug: Auth loading state
-          </div>
         </LoadingContainer>
       </MainContent>
     );
@@ -1584,17 +1037,6 @@ export default function VehiclesOutOfService() {
         <ErrorAlert>
           You must be logged in to access this page. Please <a href="/login" style={{ color: '#f44336' }}>log in</a> to continue.
         </ErrorAlert>
-        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f9f9f9', border: '1px solid #ddd', borderRadius: '4px' }}>
-          <strong>Debug Info:</strong>
-          <div>User: {user ? 'Present' : 'Not found'}</div>
-          <div>User Profile: {userProfile ? 'Present' : 'Not found'}</div>
-          <div>Auth token: {getStoredToken() ? 'Present' : 'Not found'}</div>
-          <div>Auth Loading: {authLoading ? 'Yes' : 'No'}</div>
-          <div>Current Session Status: Not authenticated</div>
-        </div>
-        <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#fff3cd', border: '1px solid #ffeaa7', borderRadius: '4px' }}>
-          <strong>Note:</strong> The flash cards data will show correct totals once you log in and the page loads properly.
-        </div>
       </MainContent>
     );
   }
@@ -1604,18 +1046,6 @@ export default function VehiclesOutOfService() {
       <MainContent>
         <LoadingContainer>
           <div>Loading vehicles out of service...</div>
-          <div style={{ fontSize: '0.9rem', marginTop: '10px', color: '#666' }}>
-            Debug: Loading state active - User: {user ? 'Logged in' : 'Not logged in'}
-          </div>
-          <div style={{ fontSize: '0.8rem', marginTop: '5px', color: '#888' }}>
-            Check browser console for detailed logs
-          </div>
-          <div style={{ fontSize: '0.8rem', marginTop: '5px', color: '#888' }}>
-            Profile: {userProfile ? 'Loaded' : 'Not loaded'} | Auth Loading: {authLoading ? 'Yes' : 'No'}
-          </div>
-          <div style={{ fontSize: '0.7rem', marginTop: '5px', color: '#999' }}>
-            Debug: loadAllVehicles called, loadVehicles called, data loading in progress...
-          </div>
         </LoadingContainer>
       </MainContent>
     );
@@ -1627,7 +1057,7 @@ export default function VehiclesOutOfService() {
       <Section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <Title>Vehicles: Out of Service</Title>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: ' 10px' }}>
             <button
               onClick={handlePrevDay}
               style={{
@@ -1680,8 +1110,6 @@ export default function VehiclesOutOfService() {
         <Section>
           <ErrorAlert>
             <strong>Error:</strong> {error}
-            <br />
-            <small>Debug: Check console for more details</small>
           </ErrorAlert>
         </Section>
       )}
@@ -1694,12 +1122,9 @@ export default function VehiclesOutOfService() {
         </Section>
       )}
 
-
-
       {/* Summary Cards */}
       <Section>
         <FlexRow>
-          {/* Command Vehicles */}
           <Column>
             <SummaryCard>
               <CardTitle>Command Vehicles</CardTitle>
@@ -1711,7 +1136,6 @@ export default function VehiclesOutOfService() {
             </SummaryCard>
           </Column>
 
-          {/* Fire Vehicles */}
           <Column>
             <SummaryCard>
               <CardTitle>Fire Vehicles</CardTitle>
@@ -1723,7 +1147,6 @@ export default function VehiclesOutOfService() {
             </SummaryCard>
           </Column>
 
-          {/* Ambulances */}
           <Column>
             <SummaryCard>
               <CardTitle>Ambulances</CardTitle>
@@ -1735,7 +1158,6 @@ export default function VehiclesOutOfService() {
             </SummaryCard>
           </Column>
 
-          {/* Utility Vehicles */}
           <Column>
             <SummaryCard>
               <CardTitle>Utility Vehicles</CardTitle>
@@ -1747,7 +1169,6 @@ export default function VehiclesOutOfService() {
             </SummaryCard>
           </Column>
 
-          {/* Total Out of Service */}
           <Column>
             <SummaryCard>
               <CardTitle>Total Out of Service</CardTitle>
@@ -1761,7 +1182,7 @@ export default function VehiclesOutOfService() {
         </FlexRow>
       </Section>
 
-      {/* Action Buttons - Below Flash Cards */}
+      {/* Action Buttons */}
       <Section>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-start', marginTop: '20px', flexWrap: 'wrap' }}>
           <ActionButton $variant="primary" onClick={generatePDF}>
@@ -1823,8 +1244,8 @@ export default function VehiclesOutOfService() {
             <tbody>
               {vehicles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#757575' }}>
-                    No vehicles currently marked as "Out of Service" in today's Vehicle Station Assignment
+                  <TableCell colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#757575' }}>
+                    No vehicles currently marked as "Out of Service"
                   </TableCell>
                 </TableRow>
               ) : (
@@ -1862,7 +1283,6 @@ export default function VehiclesOutOfService() {
                           if (isNaN(testDate.getTime())) return 'N/A';
                           return getDaysOutOfService(date);
                         } catch (error) {
-                          console.error('Error calculating days out for vehicle:', vehicle.call_sign, error);
                           return 'N/A';
                         }
                       })()}
@@ -1941,8 +1361,6 @@ export default function VehiclesOutOfService() {
           </StyledTable>
         </TableContainer>
       </Section>
-
-
     </MainContent>
   );
-};
+}
