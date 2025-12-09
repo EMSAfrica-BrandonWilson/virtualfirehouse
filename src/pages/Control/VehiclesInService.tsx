@@ -278,20 +278,47 @@ export const VehiclesInService: React.FC = () => {
   const getDaysInService = (inServiceDate?: string, outOfServiceDate?: string) => {
     if (!inServiceDate) return 'N/A';
     
+    // Parse inServiceDate - handle both full ISO and date-only strings if needed
     const startDate = new Date(inServiceDate);
     
+    // Normalize start date to midnight to ensure accurate day calculation
+    startDate.setHours(0, 0, 0, 0);
+    
     // If vehicle has been taken out of service, calculate complete duration
+    // NOTE: This logic assumes that if outOfServiceDate is present, the vehicle IS currently out of service
+    // However, for the "Vehicles In Service" page, we are mostly listing vehicles that ARE currently in service
+    // So usually outOfServiceDate will be undefined for active vehicles.
+    // If a vehicle WAS out of service and is NOW back in service, its 'in_service_date' (updated_at)
+    // should have been reset to the time it came back.
+    // Therefore, calculating from 'in_service_date' to 'now' is correct for the current active period.
+    
     if (outOfServiceDate) {
+      // If there's an out of service date, it means this record represents a CLOSED period of service
+      // OR it's a vehicle that is currently out of service (but maybe appearing here for history?)
+      // In this specific view (VehiclesInService), we typically only show status='In Service'.
+      
+      // If the vehicle status is 'In Service' but it has an OLD out_of_service_date (which shouldn't happen in a clean state,
+      // but if it does, we should ignore the old date and count from the NEW in_service_date).
+      
+      // But based on the user request: "If a vehicle has an outOfServiceDate, the calculation must reset to 0 when the vehicle returns to service and the count then resumes."
+      // This implies that when it returns to service, the 'in_service_date' is the anchor.
+      // So the standard logic below (today - startDate) ALREADY handles this, assuming 'startDate' is the NEW return-to-service date.
+      
+      // If this specific record has an outOfServiceDate, it usually means the period has ended.
       const endDate = new Date(outOfServiceDate);
-      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      endDate.setHours(0, 0, 0, 0);
+      const diffTime = endDate.getTime() - startDate.getTime();
+      const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
       return diffDays;
     }
     
     // If still in service, calculate from start date to today
     const today = new Date();
-    const diffTime = Math.abs(today.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    today.setHours(0, 0, 0, 0);
+    
+    const diffTime = today.getTime() - startDate.getTime();
+    const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+    
     return diffDays;
   };
 
@@ -357,8 +384,8 @@ export const VehiclesInService: React.FC = () => {
           call_sign: assignment.call_sign || '',
           vehicle_make: assignment.vehicle_make || '',
           vehicle_model: assignment.vehicle_model || '',
-          in_service_date: assignment.updated_at || new Date().toISOString(),
-          out_of_service_date: assignment.status === 'Out of Service' ? assignment.updated_at || new Date().toISOString() : undefined,
+          in_service_date: assignment.in_service_date || assignment.updated_at || new Date().toISOString(),
+          out_of_service_date: assignment.status === 'Out of Service' ? assignment.out_of_service_date || assignment.updated_at || new Date().toISOString() : undefined,
           last_maintenance: assignment.updated_at || new Date().toISOString(),
           fuel_level: 85, // Default fuel level
           equipment_status: 'Good',
@@ -760,7 +787,7 @@ export const VehiclesInService: React.FC = () => {
                   <TableRow key={vehicle.id}>
                       <TableCell>
                         <strong>{vehicle.vehicle_number || vehicle.call_sign || 'N/A'}</strong>
-                        <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '4px' }}>
+                        <div style={{ fontSize: '1rem', color: '#666', marginTop: '4px' }}>
                           {vehicle.vehicle_make} {vehicle.vehicle_model}
                         </div>
                       </TableCell>

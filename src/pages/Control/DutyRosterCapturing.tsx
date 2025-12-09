@@ -510,6 +510,10 @@ export const DutyRosterCapturing: React.FC = () => {
   useEffect(() => {
     console.log('Shift changed to:', selectedShift, '- reloading staff');
     loadStaffMembers();
+    loadOICMembers();
+    loadDriverMembers();
+    loadCrew1Members();
+    loadCrew2Members();
     // Clear staff selections when shift changes since available staff may change
     setStaffSelections({});
   }, [selectedShift]);
@@ -580,28 +584,31 @@ export const DutyRosterCapturing: React.FC = () => {
 
   const loadCrew2Members = async () => {
     try {
-      // Prefer staff_basic_info when available
-      const { data: sbiRows, error: sbiErr } = await supabase
-        .from('staff_basic_info')
+      let selectedShiftId = null;
+      if (selectedShift !== 'All Shifts') {
+        const { data: shiftData } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .select('id')
+          .eq('shift_name', selectedShift)
+          .single();
+        if (shiftData) selectedShiftId = shiftData.id;
+      }
+
+      // Use 02_admin_staff_1_registration directly
+      let query = supabase
+        .from('02_admin_staff_1_registration')
         .select('staff_id, first_name, middle_name, last_name, rank_id')
-        .eq('rank_id', 5)
+        .in('rank_id', [5, '5'])
         .order('first_name', { ascending: true })
         .order('last_name', { ascending: true });
 
-      let rows: any[] = [];
-      if (!sbiErr && Array.isArray(sbiRows) && sbiRows.length > 0) {
-        rows = sbiRows;
-      } else {
-        const { data: regRows, error: regErr } = await supabase
-          .from('02_admin_staff_1_registration')
-          .select('staff_id, first_name, middle_name, last_name, rank_id')
-          .in('rank_id', [5, '5'])
-          .order('first_name', { ascending: true })
-          .order('last_name', { ascending: true });
-        rows = (!regErr && Array.isArray(regRows)) ? regRows : [];
+      if (selectedShiftId) {
+        query = query.eq('operational_shift_id', selectedShiftId);
       }
 
-      const transformed = rows.map((row: any) => ({
+      const { data: rows, error: err } = await query;
+      
+      const transformed = (rows || []).map((row: any) => ({
         staff_id: String(row?.staff_id ?? row?.id ?? ''),
         full_name: [row?.first_name, row?.middle_name, row?.last_name].filter(Boolean).join(' ').trim(),
         rank_id: row?.rank_id
@@ -615,27 +622,31 @@ export const DutyRosterCapturing: React.FC = () => {
 
   const loadCrew1Members = async () => {
     try {
-      const { data: sbiRows, error: sbiErr } = await supabase
-        .from('staff_basic_info')
+      let selectedShiftId = null;
+      if (selectedShift !== 'All Shifts') {
+        const { data: shiftData } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .select('id')
+          .eq('shift_name', selectedShift)
+          .single();
+        if (shiftData) selectedShiftId = shiftData.id;
+      }
+
+      // Use 02_admin_staff_1_registration directly
+      let query = supabase
+        .from('02_admin_staff_1_registration')
         .select('staff_id, first_name, middle_name, last_name, rank_id')
-        .eq('rank_id', 5)
+        .in('rank_id', [5, '5'])
         .order('first_name', { ascending: true })
         .order('last_name', { ascending: true });
 
-      let rows: any[] = [];
-      if (!sbiErr && Array.isArray(sbiRows) && sbiRows.length > 0) {
-        rows = sbiRows;
-      } else {
-        const { data: regRows, error: regErr } = await supabase
-          .from('02_admin_staff_1_registration')
-          .select('staff_id, first_name, middle_name, last_name, rank_id')
-          .in('rank_id', [5, '5'])
-          .order('first_name', { ascending: true })
-          .order('last_name', { ascending: true });
-        rows = (!regErr && Array.isArray(regRows)) ? regRows : [];
+      if (selectedShiftId) {
+        query = query.eq('operational_shift_id', selectedShiftId);
       }
 
-      const transformed = rows.map((row: any) => ({
+      const { data: rows, error: err } = await query;
+      
+      const transformed = (rows || []).map((row: any) => ({
         staff_id: String(row?.staff_id ?? row?.id ?? ''),
         full_name: [row?.first_name, row?.middle_name, row?.last_name].filter(Boolean).join(' ').trim(),
         rank_id: row?.rank_id
@@ -649,31 +660,40 @@ export const DutyRosterCapturing: React.FC = () => {
 
   const loadDriverMembers = async () => {
     try {
-      const { data: sbiRows, error: sbiErr } = await supabase
-        .from('staff_basic_info')
+      let selectedShiftId = null;
+      if (selectedShift !== 'All Shifts') {
+        const { data: shiftData } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .select('id')
+          .eq('shift_name', selectedShift)
+          .single();
+        if (shiftData) selectedShiftId = shiftData.id;
+      }
+
+      // Use 02_admin_staff_1_registration directly
+      // Note: Rank 51 is used for drivers. Some drivers might have different ranks in registration,
+      // but we filter by rank_id=51 here.
+      // If drivers are missing, it might be due to strict rank filtering.
+      let query = supabase
+        .from('02_admin_staff_1_registration')
         .select('staff_id, first_name, middle_name, last_name, rank_id')
-        .eq('rank_id', 51)
+        .in('rank_id', [51, '51'])
         .order('first_name', { ascending: true })
         .order('last_name', { ascending: true });
 
-      let rows: any[] = [];
-      if (!sbiErr && Array.isArray(sbiRows) && sbiRows.length > 0) {
-        rows = sbiRows;
-      } else {
-        const { data: regRows, error: regErr } = await supabase
-          .from('02_admin_staff_1_registration')
-          .select('staff_id, first_name, middle_name, last_name, rank_id')
-          .in('rank_id', [51, '51'])
-          .order('first_name', { ascending: true })
-          .order('last_name', { ascending: true });
-        rows = (!regErr && Array.isArray(regRows)) ? regRows : [];
+      if (selectedShiftId) {
+        query = query.eq('operational_shift_id', selectedShiftId);
       }
 
-      const transformed = rows.map((row: any) => ({
+      const { data: rows, error: err } = await query;
+
+      const transformed = (rows || []).map((row: any) => ({
         staff_id: String(row?.staff_id ?? row?.id ?? ''),
         full_name: [row?.first_name, row?.middle_name, row?.last_name].filter(Boolean).join(' ').trim(),
         rank_id: row?.rank_id
       })).filter((r: any) => r.full_name);
+      
+      console.log(`Drivers loaded for shift ${selectedShift}: ${transformed.length}`);
       setDriverMembers(transformed);
     } catch (err) {
       console.error('Error loading Driver members:', err);
@@ -731,6 +751,8 @@ export const DutyRosterCapturing: React.FC = () => {
       const { data, error } = await supabase
         .from('02_admin_register_fd3_stations')
         .select('id, fire_station_name')
+        // Filter by fire_department_id = 8 as per database check (default department)
+        .eq('department_id', 8)
         .order('fire_station_name', { ascending: true });
 
       if (error) {
@@ -995,13 +1017,31 @@ export const DutyRosterCapturing: React.FC = () => {
 
   const loadOICMembers = async () => {
     try {
-      const { data, error } = await supabase
+      let selectedShiftId = null;
+      if (selectedShift !== 'All Shifts') {
+        const { data: shiftData } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .select('id')
+          .eq('shift_name', selectedShift)
+          .single();
+        if (shiftData) selectedShiftId = shiftData.id;
+      }
+
+      // Use 02_admin_staff_1_registration for filtering capability as staff_basic_info seems empty/unreliable
+      let query = supabase
         .from('02_admin_staff_1_registration')
         .select('staff_id, first_name, middle_name, last_name')
         .order('first_name', { ascending: true })
         .order('last_name', { ascending: true });
-      if (error) throw error;
-      const rows = data || [];
+
+      if (selectedShiftId) {
+        query = query.eq('operational_shift_id', selectedShiftId);
+      }
+
+      const { data, error } = await query;
+      
+      let rows = data || [];
+      
       const transformed = rows.map((row: any) => ({
         staff_id: String(row?.staff_id ?? row?.id ?? ''),
         full_name: [row?.first_name, row?.middle_name, row?.last_name].filter(Boolean).join(' ').trim()
@@ -1067,6 +1107,22 @@ export const DutyRosterCapturing: React.FC = () => {
       <Section>
         <FormSection>
           <SectionHeader>
+            <ShiftContainer>
+              <ShiftLabel htmlFor="shift">Shift</ShiftLabel>
+              <ShiftSelect
+                id="shift"
+                value={selectedShift}
+                onChange={(e) => setSelectedShift(e.target.value)}
+                disabled={operationalShifts.length === 0}
+              >
+                <option value="All Shifts">All Shifts</option>
+                {operationalShifts.map((shift) => (
+                  <option key={shift.shift_name} value={shift.shift_name}>
+                    {shift.shift_name}
+                  </option>
+                ))}
+              </ShiftSelect>
+            </ShiftContainer>
             <FireStationContainer>
               <FireStationLabel htmlFor="fire-station">Fire Station Allocation</FireStationLabel>
               <FireStationSelect
@@ -1085,22 +1141,6 @@ export const DutyRosterCapturing: React.FC = () => {
                 })}
               </FireStationSelect>
             </FireStationContainer>
-            <ShiftContainer>
-              <ShiftLabel htmlFor="shift">Shift</ShiftLabel>
-              <ShiftSelect
-                id="shift"
-                value={selectedShift}
-                onChange={(e) => setSelectedShift(e.target.value)}
-                disabled={operationalShifts.length === 0}
-              >
-                <option value="All Shifts">All Shifts</option>
-                {operationalShifts.map((shift) => (
-                  <option key={shift.shift_name} value={shift.shift_name}>
-                    {shift.shift_name}
-                  </option>
-                ))}
-              </ShiftSelect>
-            </ShiftContainer>
             <DatePickerContainer style={{ marginTop: '0' }}>
               <DatePickerLabel htmlFor="roster-date">View Date</DatePickerLabel>
               <DatePicker

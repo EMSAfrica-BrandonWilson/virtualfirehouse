@@ -45,6 +45,7 @@ const DutyRosterReports = lazy(() => import('./pages/Control/DutyRosterReports')
 import { VehiclesInService } from './pages/Control/VehiclesInService';
 import VehiclesOutOfService from './pages/Control/VehiclesOutOfService';
 import { EmergencyIncidentLogging } from './pages/Control/EmergencyIncidentLogging';
+import { IncidentCallTaking } from './pages/Control/IncidentCallTaking';
 const EmergencyIncidentReports = lazy(() => import('./pages/Control/EmergencyIncidentReports').then(m => ({ default: m.EmergencyIncidentReports })));
 import { ECCChecklists } from './pages/Control/ECCChecklists';
 import { ApplianceBayDoors } from './pages/Control/Checklists/ApplianceBayDoors';
@@ -870,6 +871,14 @@ function App() {
                 <MainMaster>
                   <ProtectedRoute>
                     <EmergencyIncidentLogging />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+
+              <Route path="/control/emergency-incident-logging/call-taking" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentCallTaking />
                   </ProtectedRoute>
                 </MainMaster>
               } />

@@ -314,6 +314,27 @@ const getLeftMenuItems = (currentPath: string, isSystemAdmin: boolean = false, u
         { name: 'duty-roster-reports', path: '/control/daily-duty-rostering/reports', text: 'Duty Roster Reports' },
       ];
     }
+
+    // Emergency Incident Management sub-menu
+    if (currentPath.startsWith('/control/emergency-incident-logging')) {
+      return [
+        { name: 'emergency-incident-management-main', path: '/control/emergency-incident-logging', text: 'Emergency Incident Management' },
+        { name: 'incident-call-taking', path: '/control/emergency-incident-logging/call-taking', text: 'Incident Call Taking' },
+        { name: 'incident-call-dispatching', path: '/control/emergency-incident-logging/dispatching', text: 'Incident Call Dispatching' },
+        { name: 'responding-resources', path: '/control/emergency-incident-logging/resources', text: 'Responding Resources' },
+        { name: 'incident-narrative', path: '/control/emergency-incident-logging/narrative', text: 'Incident Narrative' },
+        { name: 'casualties-fatalities', path: '/control/emergency-incident-logging/casualties', text: 'Casualties & Fatalities' },
+        { name: 'damage-loss-reporting', path: '/control/emergency-incident-logging/damage-loss', text: 'Damage / Loss Reporting' },
+        { name: 'equipment-used', path: '/control/emergency-incident-logging/equipment', text: 'Equipment Used' },
+        { name: 'property-information', path: '/control/emergency-incident-logging/property', text: 'Property information' },
+        { name: 'incident-route-finder', path: '/control/emergency-incident-logging/route-finder', text: 'Incident Route Finder' },
+        { name: 'weather-information', path: '/control/emergency-incident-logging/weather', text: 'Weather Information' },
+        { name: 'multi-media-files', path: '/control/emergency-incident-logging/media', text: 'Multi-Media Files' },
+        { name: 'record-modification-history', path: '/control/emergency-incident-logging/history', text: 'Record Modification History' },
+        { name: 'record-lock-status', path: '/control/emergency-incident-logging/lock-status', text: 'Record Lock Status' },
+        { name: 'incident-report', path: '/control/emergency-incident-logging/report', text: 'Incident Report' },
+      ];
+    }
     
     // Refuelling Logbook sub-menu (must come before general ECC Checklists)
     if (currentPath.startsWith('/control/ecc-checklists/refuelling-log-book')) {
@@ -349,7 +370,7 @@ const getLeftMenuItems = (currentPath: string, isSystemAdmin: boolean = false, u
     return [
       { name: 'daily-occurrence-book', path: '/control/daily-occurrence-book', text: 'Daily Occurrence Book' },
       { name: 'daily-duty-rostering', path: '/control/daily-duty-rostering', text: 'Daily Duty Rostering' },
-      { name: 'emergency-incident-logging', path: '/control/emergency-incident-logging', text: 'Emergency Incident Logging' },
+      { name: 'emergency-incident-logging', path: '/control/emergency-incident-logging', text: 'Emergency Incident Management' },
       { name: 'emergency-incident-reports', path: '/control/emergency-incident-reports', text: 'Emergency Incident Reports' },
       { name: 'ecc-checklists', path: '/control/ecc-checklists', text: 'ECC Checklists' },
       { name: 'notams', path: '/control/notams', text: 'NOTAMs' },

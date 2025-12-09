@@ -594,26 +594,100 @@ export default function VehiclesOutOfService() {
       setLoading(true);
       setError(null);
 
-      // Delete the current record to force a re-copy from previous valid data
       const currentDate = getCurrentDate();
-      const { error: deleteError } = await supabase
-        .from('daily_vehicle_records')
-        .delete()
-        .eq('record_date', currentDate);
+      console.log('Refreshing data from station assignments for:', currentDate);
 
-      if (deleteError) {
-        console.error('Error deleting current record:', deleteError);
+      // Fetch from station assignments table
+      const { data: assignments, error: fetchError } = await supabase
+        .from('03_ecc_02_duty_roster_01_station_assignments')
+        .select('*')
+        .eq('assignment_date', currentDate);
+
+      if (fetchError) throw fetchError;
+
+      if (assignments) {
+        // Fetch previous day's record to preserve original out_of_service_date
+        const prevDate = new Date(currentDate);
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevDateStr = prevDate.toISOString().split('T')[0];
+        
+        const { data: prevRecord } = await supabase
+          .from('daily_vehicle_records')
+          .select('*')
+          .eq('record_date', prevDateStr)
+          .single();
+          
+        const prevVehiclesMap = new Map();
+        if (prevRecord && prevRecord.vehicles_data) {
+          prevRecord.vehicles_data.forEach((v: any) => {
+             // Map by call_sign (preferred) or vehicle_number
+             const key = (v.call_sign || v.vehicle_number || '').trim().toUpperCase();
+             if (key) prevVehiclesMap.set(key, v);
+          });
+        }
+
+        // Filter for out of service vehicles
+        // Include vehicles explicitly marked as Out of Service, Workshop, or having is_workshop flag
+        // Also include any vehicle that is NOT 'In Service' and NOT 'Available'
+        const outOfServiceVehicles = assignments.filter(a =>
+          a.status === 'Out of Service' ||
+          a.status === 'Workshop' ||
+          a.is_workshop === true ||
+          (a.status !== 'In Service' && a.status !== 'Available')
+        );
+
+        console.log('Found out of service vehicles from assignments:', outOfServiceVehicles);
+
+        const newVehicles: Vehicle[] = outOfServiceVehicles.map(a => {
+          const callSignKey = (a.call_sign || '').trim().toUpperCase();
+          const prevVehicle = prevVehiclesMap.get(callSignKey);
+          
+          // If vehicle was out of service yesterday, keep the original date to increment "Days Out" count
+          // Otherwise, assume it went out of service today (start of assignment date)
+          const outOfServiceDate = prevVehicle && prevVehicle.out_of_service_date 
+            ? prevVehicle.out_of_service_date 
+            : `${a.assignment_date}T00:00:00`;
+            
+          return {
+            id: a.id.toString(), // assignments id is bigint/number
+            vehicle_number: a.call_sign || 'N/A', // Mapping call_sign to vehicle_number as fallback
+            vehicle_type: a.vehicle_type || 'N/A',
+            status: a.status || 'Out of Service',
+            readiness: a.readiness || 'N/A',
+            assigned_station: a.station_assignment || 'Unassigned',
+            driver_name: a.crew_members || '',
+            crew_members: a.crew_members || '',
+            call_sign: a.call_sign || '',
+            vehicle_make: a.vehicle_make || '',
+            vehicle_model: a.vehicle_model || '',
+            out_of_service_reason: a.notes || '', // Map notes to reason
+            out_of_service_date: outOfServiceDate,
+            reason_text: a.notes || (prevVehicle ? prevVehicle.reason_text : ''),
+            maintenance_type: (prevVehicle ? prevVehicle.maintenance_type : 'Planned Maintenance'),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        });
+
+        setVehicles(newVehicles);
+        
+        // Reset current record so user can save this new snapshot
+        setCurrentRecord(null);
+        setLastUpdated(new Date());
+        
+        // Update maintenance types state for the new vehicles
+        const types: { [key: string]: 'Corrective Maintenance' | 'Planned Maintenance' } = {};
+        newVehicles.forEach(v => {
+            types[v.id] = 'Planned Maintenance';
+        });
+        setMaintenanceTypes(types);
+
+        setSuccess(`Refreshed data: Found ${newVehicles.length} out of service vehicles.`);
       } else {
-        console.log('Deleted current record to force refresh');
+          setVehicles([]);
+          setSuccess('No assignments found for this date.');
       }
 
-      setVehicles([]);
-      setAllVehicles([]);
-      setCurrentRecord(null);
-
-      await loadDailyRecord();
-
-      setLastUpdated(new Date());
     } catch (err: any) {
       console.error('Error during data refresh:', err);
       setError(err.message || 'Failed to refresh data');
@@ -636,11 +710,39 @@ export default function VehiclesOutOfService() {
 
   // Load all vehicle assignments for a specific date (for counting purposes)
   const loadAllAssignmentsForDate = async (date: string) => {
-    const { data: allAssignments, error: allError } = await supabase
+    let { data: allAssignments, error: allError } = await supabase
       .from('03_ecc_02_duty_roster_01_station_assignments')
       .select('*')
       .eq('assignment_date', date)
       .order('call_sign', { ascending: true });
+
+    // FALLBACK: If no assignments found for this date, fetch the most recent available assignment set
+    // This ensures the "Total" denominator in flash cards is correct even if roster data is missing for past dates
+    if (!allError && (!allAssignments || allAssignments.length === 0)) {
+        console.log(`No assignments found for ${date}, fetching most recent available data for denominator...`);
+        
+        // Find the most recent date that has data
+        const { data: latestDateData } = await supabase
+           .from('03_ecc_02_duty_roster_01_station_assignments')
+           .select('assignment_date')
+           .order('assignment_date', { ascending: false })
+           .limit(1);
+           
+        if (latestDateData && latestDateData.length > 0) {
+            const fallbackDate = latestDateData[0].assignment_date;
+            console.log(`Using fallback fleet data from ${fallbackDate}`);
+            
+            const { data: fallbackData, error: fallbackError } = await supabase
+               .from('03_ecc_02_duty_roster_01_station_assignments')
+               .select('*')
+               .eq('assignment_date', fallbackDate)
+               .order('call_sign', { ascending: true });
+               
+            if (!fallbackError && fallbackData) {
+                allAssignments = fallbackData;
+            }
+        }
+    }
 
     if (allError) {
       console.error('Error loading all assignments:', allError);
@@ -824,8 +926,37 @@ export default function VehiclesOutOfService() {
             // Copy the previous record to the current date
             if (user) {
               try {
-                // Deep copy the vehicles data to ensure no reference issues
-                const vehiclesToCopy = JSON.parse(JSON.stringify(previousRecord.vehicles_data));
+                // Deep copy the vehicles data
+                let vehiclesToCopy = JSON.parse(JSON.stringify(previousRecord.vehicles_data));
+
+                // IF TODAY: Cross-check with live roster to remove vehicles that are back in service
+                const todayStr = new Date().toISOString().split('T')[0];
+                if (currentDate === todayStr) {
+                   const { data: liveAssignments } = await supabase
+                     .from('03_ecc_02_duty_roster_01_station_assignments')
+                     .select('call_sign, status, is_workshop')
+                     .eq('assignment_date', todayStr);
+                     
+                   if (liveAssignments && liveAssignments.length > 0) {
+                     const inServiceSet = new Set(
+                       liveAssignments
+                         .filter(a => a.status === 'In Service' || a.status === 'Available')
+                         .map(a => (a.call_sign || '').trim().toUpperCase())
+                     );
+                     
+                     // Filter out vehicles that are now In Service
+                     const originalCount = vehiclesToCopy.length;
+                     vehiclesToCopy = vehiclesToCopy.filter((v: any) => {
+                       const key = (v.call_sign || v.vehicle_number || '').trim().toUpperCase();
+                       // Keep if NOT in service set
+                       return !inServiceSet.has(key);
+                     });
+                     
+                     if (vehiclesToCopy.length < originalCount) {
+                       console.log(`Removed ${originalCount - vehiclesToCopy.length} vehicles that are back in service.`);
+                     }
+                   }
+                }
 
                 const newRecordData = {
                   record_date: currentDate,
@@ -874,8 +1005,47 @@ export default function VehiclesOutOfService() {
       } else if (record) {
         // Record exists for this date - use it as primary source
         console.log(`Found existing record for ${currentDate}`);
-        setCurrentRecord(record);
-        loadVehiclesFromRecord(record);
+        
+        // IF TODAY: Cross-check with live roster to remove vehicles that are back in service
+        // We update the local view but maybe NOT the DB immediately (unless user saves), 
+        // OR we update DB to keep it clean?
+        // Let's filter for display first.
+        let displayRecord = record;
+        const todayStr = new Date().toISOString().split('T')[0];
+        
+        if (currentDate === todayStr) {
+           const { data: liveAssignments } = await supabase
+             .from('03_ecc_02_duty_roster_01_station_assignments')
+             .select('call_sign, status, is_workshop')
+             .eq('assignment_date', todayStr);
+             
+           if (liveAssignments && liveAssignments.length > 0) {
+             const inServiceSet = new Set(
+               liveAssignments
+                 .filter(a => a.status === 'In Service' || a.status === 'Available')
+                 .map(a => (a.call_sign || '').trim().toUpperCase())
+             );
+             
+             if (record.vehicles_data && Array.isArray(record.vehicles_data)) {
+                 const filteredVehicles = record.vehicles_data.filter((v: any) => {
+                   const key = (v.call_sign || v.vehicle_number || '').trim().toUpperCase();
+                   return !inServiceSet.has(key);
+                 });
+                 
+                 if (filteredVehicles.length !== record.vehicles_data.length) {
+                     console.log(`Filtered out ${record.vehicles_data.length - filteredVehicles.length} vehicles that are back in service.`);
+                     displayRecord = { ...record, vehicles_data: filteredVehicles };
+                     
+                     // Optional: Auto-save the cleanup to DB?
+                     // For now, let's just update the display so the user sees the correct list.
+                     // They can click "Save Record" to persist the removal if they are in edit mode.
+                 }
+             }
+           }
+        }
+
+        setCurrentRecord(displayRecord);
+        loadVehiclesFromRecord(displayRecord);
       } else {
         setCurrentRecord(null);
         setVehicles([]);
@@ -1114,14 +1284,6 @@ export default function VehiclesOutOfService() {
         </Section>
       )}
 
-      {success && (
-        <Section>
-          <SuccessAlert>
-            <strong>Success:</strong> {success}
-          </SuccessAlert>
-        </Section>
-      )}
-
       {/* Summary Cards */}
       <Section>
         <FlexRow>
@@ -1205,8 +1367,27 @@ export default function VehiclesOutOfService() {
               </ActionButton>
             </div>
           )}
-          <div style={{ marginLeft: 'auto', fontSize: '0.9rem', color: '#666', display: 'flex', alignItems: 'center' }}>
-            {vehicles.length} vehicles out of service • Last updated: {lastUpdated.toLocaleTimeString()}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+            {success ? (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                color: '#2e7d32', 
+                backgroundColor: '#e8f5e8', 
+                padding: '6px 12px', 
+                borderRadius: '6px', 
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                border: '1px solid #4caf50',
+                whiteSpace: 'nowrap'
+              }}>
+                ✓ {success.replace(/^Success:\s*/i, '').replace(/^Refreshed data:\s*/i, '')} • Last updated: {lastUpdated.toLocaleTimeString()}
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.9rem', color: '#666' }}>
+                Last updated: {lastUpdated.toLocaleTimeString()}
+              </div>
+            )}
           </div>
         </div>
       </Section>
@@ -1253,7 +1434,7 @@ export default function VehiclesOutOfService() {
                   <TableRow key={vehicle.id}>
                     <TableCell>
                       <strong>{vehicle.vehicle_number || vehicle.call_sign || 'N/A'}</strong>
-                      <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '4px' }}>
+                      <div style={{ fontSize: '1rem', color: '#666', marginTop: '4px' }}>
                         {vehicle.vehicle_make} {vehicle.vehicle_model}
                       </div>
                     </TableCell>
