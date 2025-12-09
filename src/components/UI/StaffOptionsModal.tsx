@@ -471,15 +471,8 @@ export const StaffOptionsModal: React.FC<StaffOptionsModalProps> = ({ isOpen, ty
         const payload = {
           type,
           data: {
-            ...(type === 'operational_shifts' ? { shift_name: formData.name.trim() } : { name: formData.name.trim() }),
+            name: formData.name.trim(),
             description: formData.description.trim(),
-            ...(type === 'operational_shifts' && {
-              start_time: formData.start_time || null,
-              end_time: formData.end_time || null,
-              shift_start_date: formData.shift_start_date || null,
-              shift_duration: formData.shift_duration || null,
-              color: formData.color || '#1177BB'
-            })
           },
           ...(isEditing && editingId && { id: editingId })
         };
