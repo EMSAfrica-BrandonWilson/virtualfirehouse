@@ -314,7 +314,7 @@ export const FireStationLayout: React.FC = () => {
       }
 
       const { data, error } = await supabase
-        .from('fire_stations_vfh')
+        .from('02_admin_register_fd3_stations')
         .select('id, department_id, fire_station_name')
         .eq('department_id', staffData.fire_dept_id)
         .order('fire_station_name');
@@ -376,39 +376,46 @@ export const FireStationLayout: React.FC = () => {
 
   const loadDropdownOptions = async () => {
     try {
-      const { data, error } = await supabase
-        .from('dropdown_options')
-        .select(`
-          id,
-          dropdown_id,
-          option_value,
-          display_text,
-          is_active,
-          dropdown_configurations (
-            dropdown_name
-          )
-        `)
-        .eq('is_active', true);
+      // Load Room Types from 02_admin_register_fd2_types
+      const { data: typesData, error: typesError } = await supabase
+        .from('02_admin_register_fd2_types')
+        .select('name, display_name')
+        .eq('is_active', true)
+        .order('display_name');
 
-      if (error) throw error;
+      if (typesError) throw typesError;
 
-      const groupedOptions: {[key: string]: Array<{value: string, text: string}>} = {};
-      (data || []).forEach((option: any) => {
-        const key = option.dropdown_configurations?.dropdown_name;
-        if (key) {
-          if (!groupedOptions[key]) {
-            groupedOptions[key] = [];
-          }
-          groupedOptions[key].push({
-            value: option.option_value,
-            text: option.display_text
-          });
-        }
-      });
+      // Load Room Names from 02_admin_register_fd85_equipment_location
+      const { data: namesData, error: namesError } = await supabase
+        .from('02_admin_register_fd85_equipment_location')
+        .select('name')
+        .eq('active', true)
+        .order('name');
 
-      Object.keys(groupedOptions).forEach(key => {
-        groupedOptions[key].sort((a, b) => a.text.localeCompare(b.text));
-      });
+      if (namesError) throw namesError;
+
+      // Hardcoded Room Levels (Floors) as there is no specific table for this yet
+      const roomLevels = [
+        'Basement 2', 'Basement 1', 
+        'Ground Floor', 
+        '1st Floor', '2nd Floor', '3rd Floor', '4th Floor', '5th Floor', 
+        'Roof'
+      ];
+
+      const groupedOptions: {[key: string]: Array<{value: string, text: string}>} = {
+        room_types: (typesData || []).map(t => ({
+          value: t.name,
+          text: t.display_name || t.name
+        })),
+        room_names: (namesData || []).map(n => ({
+          value: n.name,
+          text: n.name
+        })),
+        room_levels: roomLevels.map(l => ({
+          value: l,
+          text: l
+        }))
+      };
 
       setDropdownOptions(groupedOptions);
     } catch (error: any) {

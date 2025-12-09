@@ -840,17 +840,65 @@ export const RegisterStaff: React.FC = () => {
   const loadStaff = async () => {
     setStaffLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('staff-crud', {
-        method: 'GET'
-      });
+      console.log('Loading staff from 02_admin_staff_1_registration...');
+      
+      // Fetch basic info
+      const { data: basicInfo, error: basicError } = await supabase
+        .from('02_admin_staff_1_registration')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      if (error) {
-        throw new Error(error.message || 'Failed to load staff');
-      }
+      if (basicError) throw basicError;
 
-      if (data?.data?.staff) {
-        setStaff(data.data.staff);
-      }
+      // Fetch emergency contacts for the list view
+      // We fetch all for now, or we could fetch on demand. Fetching all might be heavy but for < 1000 staff it's fine.
+      const { data: contacts, error: contactsError } = await supabase
+        .from('02_admin_staff_7_emergency_contacts')
+        .select('*');
+        
+      if (contactsError) console.error('Error loading contacts:', contactsError);
+
+      // Fetch departments for name mapping (if not already loaded, but we have them in state, though state might not be ready if called sequentially)
+      // Actually we can just use the departments state if it's populated, or join logic here.
+      // But loadDepartments runs on mount. 
+      // Let's do a quick fetch to be safe or map later.
+      
+      const { data: depts } = await supabase.from('emergency_departments').select('id, dept_name');
+      const deptMap = (depts || []).reduce((acc: any, d: any) => ({ ...acc, [d.id]: d.dept_name }), {});
+      
+      const contactMap = (contacts || []).reduce((acc: any, c: any) => {
+        // Assume one contact per staff for the list view, or take the first one
+        if (!acc[c.staff_id]) acc[c.staff_id] = c;
+        return acc;
+      }, {});
+
+      const mappedStaff: StaffMember[] = (basicInfo || []).map((item: any) => ({
+        id: item.staff_id, // Map staff_id to id for the frontend interface
+        department_id: item.fire_dept_id,
+        staff_id: item.employee_number || '', // This is the string ID like "S123"
+        first_name: item.first_name,
+        last_name: item.last_name,
+        id_number: item.national_id_number,
+        email: item.email_address,
+        phone_number: item.telephone_number,
+        address: '', // Will load on edit
+        hire_date: item.employment_start_date,
+        position: '', // Not in this table?
+        rank: item.rank_name || '', // Use the text column if available
+        rank_id: item.rank_id,
+        employment_status: 'Active', // Default or need a column? 
+        certification_details: '',
+        certification_expiry: '',
+        training_records: '',
+        emergency_contact_name: contactMap[item.staff_id]?.contact_name || '',
+        emergency_contact_phone: contactMap[item.staff_id]?.phone_number || '',
+        emergency_contact_relationship: contactMap[item.staff_id]?.relationship || '',
+        staff_image_url: item.photo_url,
+        created_at: item.created_at,
+        department_name: deptMap[item.fire_dept_id] || ''
+      }));
+
+      setStaff(mappedStaff);
     } catch (error: any) {
       console.error('Error loading staff:', error);
       setError(error.message || 'Failed to load staff');
@@ -885,142 +933,185 @@ export const RegisterStaff: React.FC = () => {
     setSuccess('');
 
     try {
-      let staffPictureData = null;
-      let fileName = null;
+      let photoUrl = null;
 
       // Handle file upload if a picture is selected
       if (staffData.staffPicture) {
-        staffPictureData = await fileToBase64(staffData.staffPicture);
-        fileName = staffData.staffPicture.name;
+        const file = staffData.staffPicture;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError, data: uploadData } = await supabase.storage
+          .from('staff-images')
+          .upload(filePath, file);
+
+        if (uploadError) {
+           console.error('Upload error', uploadError);
+           // Continue without image or throw?
+        } else if (uploadData) {
+           const { data: { publicUrl } } = supabase.storage
+             .from('staff-images')
+             .getPublicUrl(filePath);
+           photoUrl = publicUrl;
+        }
       }
 
-      if (isEditing && editingStaffId) {
-        // Update existing staff member
-        const { data, error } = await supabase.functions.invoke('staff-crud', {
-          method: 'PUT',
-          body: {
-            staffId: editingStaffId,
-            departmentId: parseInt(staffData.departmentId),
-            fireStationId: staffData.fireStationId,
-            staffIdNumber: staffData.staffIdNumber,
-            firstName: staffData.firstName,
-            lastName: staffData.lastName,
-            idNumber: staffData.idNumber,
-            email: staffData.email,
-            phoneNumber: staffData.phoneNumber,
-            address: staffData.address,
-            hireDate: staffData.hireDate,
-            positionId: parseInt(staffData.positionId) || null,
-            rankId: parseInt(staffData.rankId) || null,
-            employmentStatus: staffData.employmentStatus,
-            certificationDetails: staffData.certificationDetails,
-            certificationExpiry: staffData.certificationExpiry,
-            trainingRecords: staffData.trainingRecords,
-            emergencyContactName: staffData.emergencyContactName,
-            emergencyContactPhone: staffData.emergencyContactPhone,
-            emergencyContactRelationshipId: parseInt(staffData.emergencyContactRelationshipId) || null,
-            staffPictureData,
-            fileName,
-            // New expiry date fields
-            idIqamaExpiryDate: staffData.idIqamaExpiryDate || null,
-            driversLicenseExpiryDate: staffData.driversLicenseExpiryDate || null,
-            airsideIdExpiryDate: staffData.airsideIdExpiryDate || null,
-            airsidePermitExpiryDate: staffData.airsidePermitExpiryDate || null
-          }
-        });
+      // Prepare basic info payload
+      const basicPayload = {
+        employee_number: staffData.staffIdNumber,
+        first_name: staffData.firstName,
+        last_name: staffData.lastName,
+        fire_dept_id: parseInt(staffData.departmentId),
+        fire_station_id: staffData.fireStationId ? parseInt(staffData.fireStationId) : null,
+        telephone_number: staffData.phoneNumber,
+        email_address: staffData.email,
+        national_id_number: staffData.idNumber,
+        employment_start_date: staffData.hireDate || null,
+        rank_id: staffData.rankId ? parseInt(staffData.rankId) : null,
+        // photo_url: photoUrl // Only update if new one? Or keep old?
+      };
+      
+      if (photoUrl) {
+        (basicPayload as any).photo_url = photoUrl;
+      }
 
-        if (error) {
-          throw new Error(error.message || 'Failed to update staff member');
+      let currentStaffId = editingStaffId;
+
+      if (isEditing && currentStaffId) {
+        // UPDATE
+        const { error: updateError } = await supabase
+          .from('02_admin_staff_1_registration')
+          .update(basicPayload)
+          .eq('staff_id', currentStaffId);
+
+        if (updateError) throw updateError;
+        
+      } else {
+        // INSERT
+        const { data: newStaff, error: insertError } = await supabase
+          .from('02_admin_staff_1_registration')
+          .insert(basicPayload)
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        currentStaffId = newStaff.staff_id;
+      }
+
+      if (!currentStaffId) throw new Error('Failed to get Staff ID');
+
+      // Update Address
+      if (staffData.address) {
+        // Check if address exists
+        const { data: existingAddress } = await supabase
+          .from('02_admin_staff_2_address')
+          .select('address_id')
+          .eq('staff_id', currentStaffId)
+          .single();
+          
+        const addressPayload = {
+          staff_id: currentStaffId,
+          current_street_address: staffData.address,
+          // We can map other address fields if we split the string or add more fields to form
+        };
+
+        if (existingAddress) {
+           await supabase.from('02_admin_staff_2_address').update(addressPayload).eq('address_id', existingAddress.address_id);
+        } else {
+           await supabase.from('02_admin_staff_2_address').insert(addressPayload);
         }
+      }
 
-        if (data?.data?.success) {
-          setSuccess('Staff member updated successfully!');
+      // Update Emergency Contact
+      if (staffData.emergencyContactName) {
+         const { data: existingContact } = await supabase
+          .from('02_admin_staff_7_emergency_contacts')
+          .select('contact_id')
+          .eq('staff_id', currentStaffId)
+          .single();
+
+         const contactPayload = {
+           staff_id: currentStaffId,
+           contact_name: staffData.emergencyContactName,
+           phone_number: staffData.emergencyContactPhone,
+           relationship: dropdownOptions.relationships.find(r => r.id.toString() === staffData.emergencyContactRelationshipId)?.name || ''
+         };
+
+         if (existingContact) {
+            await supabase.from('02_admin_staff_7_emergency_contacts').update(contactPayload).eq('contact_id', existingContact.contact_id);
+         } else {
+            await supabase.from('02_admin_staff_7_emergency_contacts').insert(contactPayload);
+         }
+      }
+
+      // Update Permits/Expiry
+      // We check if we have any expiry dates to save
+      if (staffData.idIqamaExpiryDate || staffData.driversLicenseExpiryDate || staffData.airsideIdExpiryDate || staffData.airsidePermitExpiryDate) {
+         const { data: existingPermits } = await supabase
+          .from('02_admin_staff_3_permits')
+          .select('document_id')
+          .eq('staff_id', currentStaffId)
+          .single();
+          
+         const permitsPayload = {
+           staff_id: currentStaffId,
+           national_id_expiry_date: staffData.idIqamaExpiryDate || null,
+           driving_license_expiry_date: staffData.driversLicenseExpiryDate || null,
+           security_access_permit_expiry_date: staffData.airsideIdExpiryDate || null,
+           aerodrome_driving_permit_expiry_date: staffData.airsidePermitExpiryDate || null
+         };
+
+         if (existingPermits) {
+            await supabase.from('02_admin_staff_3_permits').update(permitsPayload).eq('document_id', existingPermits.document_id);
+         } else {
+            await supabase.from('02_admin_staff_3_permits').insert(permitsPayload);
+         }
+      }
+
+      setSuccess(isEditing ? 'Staff member updated successfully!' : 'Staff member registered successfully!');
+      
+      if (!isEditing) {
+         // Reset form
+          const currentDepartmentId = staffData.departmentId;
+          setStaffData({
+            departmentId: currentDepartmentId,
+            fireStationId: '',
+            staffIdNumber: '',
+            firstName: '',
+            lastName: '',
+            idNumber: '',
+            email: '',
+            phoneNumber: '',
+            address: '',
+            hireDate: '',
+            positionId: '',
+            rankId: '',
+            employmentStatus: 'Active',
+            certificationDetails: '',
+            certificationExpiry: '',
+            trainingRecords: '',
+            emergencyContactName: '',
+            emergencyContactPhone: '',
+            emergencyContactRelationshipId: '',
+            staffPicture: null,
+            idIqamaExpiryDate: '',
+            driversLicenseExpiryDate: '',
+            airsideIdExpiryDate: '',
+            airsidePermitExpiryDate: ''
+          });
+          const fileInput = document.getElementById('staffPicture') as HTMLInputElement;
+          if (fileInput) fileInput.value = '';
+      } else {
           setIsEditing(false);
           setEditingStaffId(null);
-        } else {
-          throw new Error(data?.error?.message || 'Update failed');
-        }
-      } else {
-        // Create new staff member
-        const { data, error } = await supabase.functions.invoke('register-staff', {
-          body: {
-            departmentId: parseInt(staffData.departmentId),
-            fireStationId: staffData.fireStationId,
-            staffIdNumber: staffData.staffIdNumber,
-            firstName: staffData.firstName,
-            lastName: staffData.lastName,
-            idNumber: staffData.idNumber,
-            email: staffData.email,
-            phoneNumber: staffData.phoneNumber,
-            address: staffData.address,
-            hireDate: staffData.hireDate,
-            positionId: parseInt(staffData.positionId) || null,
-            rankId: parseInt(staffData.rankId) || null,
-            employmentStatus: staffData.employmentStatus,
-            certificationDetails: staffData.certificationDetails,
-            certificationExpiry: staffData.certificationExpiry,
-            trainingRecords: staffData.trainingRecords,
-            emergencyContactName: staffData.emergencyContactName,
-            emergencyContactPhone: staffData.emergencyContactPhone,
-            emergencyContactRelationshipId: parseInt(staffData.emergencyContactRelationshipId) || null,
-            staffPictureData,
-            fileName,
-            // New expiry date fields
-            idIqamaExpiryDate: staffData.idIqamaExpiryDate || null,
-            driversLicenseExpiryDate: staffData.driversLicenseExpiryDate || null,
-            airsideIdExpiryDate: staffData.airsideIdExpiryDate || null,
-            airsidePermitExpiryDate: staffData.airsidePermitExpiryDate || null
-          }
-        });
-
-        if (error) {
-          throw new Error(error.message || 'Failed to register staff member');
-        }
-
-        if (data?.data?.success) {
-          setSuccess('Staff member registered successfully!');
-        } else {
-          throw new Error(data?.error?.message || 'Registration failed');
-        }
       }
-
-      // Reset form but keep department selection
-      const currentDepartmentId = staffData.departmentId;
-      setStaffData({
-        departmentId: currentDepartmentId,
-        fireStationId: '',
-        staffIdNumber: '',
-        firstName: '',
-        lastName: '',
-        idNumber: '',
-        email: '',
-        phoneNumber: '',
-        address: '',
-        hireDate: '',
-        positionId: '',
-        rankId: '',
-        employmentStatus: 'Active',
-        certificationDetails: '',
-        certificationExpiry: '',
-        trainingRecords: '',
-        emergencyContactName: '',
-        emergencyContactPhone: '',
-        emergencyContactRelationshipId: '',
-        staffPicture: null,
-        // New expiry date fields
-        idIqamaExpiryDate: '',
-        driversLicenseExpiryDate: '',
-        airsideIdExpiryDate: '',
-        airsidePermitExpiryDate: ''
-      });
       
-      // Reset file input
-      const fileInput = document.getElementById('staffPicture') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
-      
-      // Refresh staff list
+      // Refresh list
       await loadStaff();
+
     } catch (error: any) {
+      console.error('Error saving staff:', error);
       setError(error.message || 'An error occurred during registration');
     } finally {
       setLoading(false);
@@ -1090,9 +1181,11 @@ export const RegisterStaff: React.FC = () => {
     if (fileInput) fileInput.value = '';
   };
 
-  const editStaff = (member: StaffMember) => {
+  const editStaff = async (member: StaffMember) => {
     setIsEditing(true);
     setEditingStaffId(member.id);
+    
+    // Set basic info from list first
     setStaffData({
       departmentId: member.department_id.toString(),
       fireStationId: (member as any).fire_station_id?.toString() || '',
@@ -1102,26 +1195,74 @@ export const RegisterStaff: React.FC = () => {
       idNumber: member.id_number,
       email: member.email,
       phoneNumber: member.phone_number,
-      address: member.address,
+      address: '', // Will fetch
       hireDate: member.hire_date,
       positionId: (member as any).position_id?.toString() || '',
       rankId: (member as any).rank_id?.toString() || '',
       employmentStatus: member.employment_status,
-      certificationDetails: member.certification_details,
-      certificationExpiry: member.certification_expiry,
-      trainingRecords: member.training_records,
-      emergencyContactName: member.emergency_contact_name,
-      emergencyContactPhone: member.emergency_contact_phone,
-      emergencyContactRelationshipId: (member as any).emergency_contact_relationship_id?.toString() || '',
+      certificationDetails: '', // Will fetch
+      certificationExpiry: '', // Will fetch
+      trainingRecords: '', // Will fetch
+      emergencyContactName: member.emergency_contact_name, // Already in list
+      emergencyContactPhone: member.emergency_contact_phone, // Already in list
+      emergencyContactRelationshipId: '', // Need to find ID from name or fetch
       staffPicture: null,
-      // New expiry date fields
-      idIqamaExpiryDate: (member as any).id_iqama_expiry_date || '',
-      driversLicenseExpiryDate: (member as any).drivers_license_expiry_date || '',
-      airsideIdExpiryDate: (member as any).airside_id_expiry_date || '',
-      airsidePermitExpiryDate: (member as any).airside_permit_expiry_date || ''
+      idIqamaExpiryDate: '', // Will fetch
+      driversLicenseExpiryDate: '', // Will fetch
+      airsideIdExpiryDate: '', // Will fetch
+      airsidePermitExpiryDate: '' // Will fetch
     });
+    
     setError('');
     setSuccess('');
+
+    // Fetch full details
+    try {
+      setLoading(true);
+      
+      // Fetch Address
+      const { data: addressData } = await supabase
+        .from('02_admin_staff_2_address')
+        .select('*')
+        .eq('staff_id', member.id)
+        .single();
+
+      // Fetch Permits (Expiry Dates)
+      const { data: permitsData } = await supabase
+        .from('02_admin_staff_3_permits')
+        .select('*')
+        .eq('staff_id', member.id)
+        .single();
+        
+      // Fetch Emergency Contact (to get relationship ID if possible, though list has name)
+      const { data: contactData } = await supabase
+        .from('02_admin_staff_7_emergency_contacts')
+        .select('*')
+        .eq('staff_id', member.id)
+        .single();
+        
+      // Fetch Certification (if we decide to support it)
+      // const { data: certData } = await supabase...
+
+      setStaffData(prev => ({
+        ...prev,
+        address: addressData?.current_street_address || '',
+        idIqamaExpiryDate: permitsData?.national_id_expiry_date || '',
+        driversLicenseExpiryDate: permitsData?.driving_license_expiry_date || '',
+        airsideIdExpiryDate: permitsData?.security_access_permit_expiry_date || '',
+        airsidePermitExpiryDate: permitsData?.aerodrome_driving_permit_expiry_date || '',
+        emergencyContactRelationshipId: contactData ? 
+          dropdownOptions.relationships.find(r => r.name === contactData.relationship)?.id.toString() || '' 
+          : prev.emergencyContactRelationshipId,
+        emergencyContactName: contactData?.contact_name || prev.emergencyContactName,
+        emergencyContactPhone: contactData?.phone_number || prev.emergencyContactPhone
+      }));
+
+    } catch (err) {
+      console.error('Error fetching staff details:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const deleteStaff = async (staffId: number, staffName: string) => {
@@ -1131,21 +1272,25 @@ export const RegisterStaff: React.FC = () => {
 
     setDeletingIds(prev => new Set(prev).add(staffId));
     try {
-      const { data, error } = await supabase.functions.invoke('staff-crud', {
-        method: 'DELETE',
-        body: { staffId }
-      });
+      // Direct delete from 02_admin_staff_1_registration
+      // Assuming cascade delete is set up in DB for related tables. 
+      // If not, we should delete children first. 
+      // Safest to try delete parent, if fails, delete children.
+      // But typically RLS enabled tables might block delete if not owner?
+      // We are admin.
+      
+      const { error } = await supabase
+        .from('02_admin_staff_1_registration')
+        .delete()
+        .eq('staff_id', staffId);
 
       if (error) {
         throw new Error(error.message || 'Failed to delete staff member');
       }
 
-      if (data?.data?.success) {
-        setSuccess('Staff member deleted successfully!');
-        await loadStaff();
-      } else {
-        throw new Error(data?.error?.message || 'Delete failed');
-      }
+      setSuccess('Staff member deleted successfully!');
+      await loadStaff();
+      
     } catch (error: any) {
       setError(error.message || 'Failed to delete staff member');
     } finally {

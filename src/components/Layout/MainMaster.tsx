@@ -207,10 +207,8 @@ const getLeftMenuItems = (currentPath: string, isSystemAdmin: boolean = false, u
       }));
 
       const remainingMenuItems = [
-        { name: 'stations-layout', path: '/admin/register/stations/layout', text: '+ Fire Station Rooms' },
-        { name: 'stations-equipment', path: '/admin/register/stations/equipment', text: '+ Station Room Equipment' },
-        { name: 'stations-reports', path: '/admin/register/stations/reports', text: 'Fire Station Reports' },
-        { name: 'stations-details', path: '/admin/register/stations/details', text: 'Fire Station Details' },
+        { name: 'stations-reports', path: '/admin/register/stations/reports', text: 'Registered Default Fire Station' },
+        { name: 'stations-all', path: '/admin/register/stations/all', text: 'All Register Fire Stations' },
       ];
 
       return [...baseMenuItems, ...customMenuItems, ...stationMenuItems, ...remainingMenuItems];

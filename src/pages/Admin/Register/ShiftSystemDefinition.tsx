@@ -331,6 +331,7 @@ export const ShiftSystemDefinition: React.FC = () => {
   const [loadingSystem, setLoadingSystem] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<boolean>(true); // fields inactive by default
   const [lastLoadedSystemName, setLastLoadedSystemName] = useState<string>('');
+  const [isDefault, setIsDefault] = useState<boolean>(false);
 
   const current = patterns[selectedPatternIndex];
 
@@ -439,6 +440,7 @@ export const ShiftSystemDefinition: React.FC = () => {
   const handleAdd = () => {
     setViewMode(false);
     setShiftSystemName('');
+    setIsDefault(false);
     // Reset current pattern to defaults for new entry
     setPatterns(() => [{
       patternName: 'Pattern 1',
@@ -509,6 +511,14 @@ export const ShiftSystemDefinition: React.FC = () => {
     }
     setSaving(true);
     try {
+      // If setting this as default, unset others first (optional but safer)
+      if (isDefault) {
+        await supabase
+          .from('02_admin_shift_system_definitions')
+          .update({ is_default: false })
+          .neq('system_name', shiftSystemName.trim());
+      }
+
       const payload = {
         system_name: shiftSystemName.trim(),
         number_of_shifts: current.numberOfShifts,
@@ -519,6 +529,7 @@ export const ShiftSystemDefinition: React.FC = () => {
         rotation_order: current.rotationOrder,
         shift_colors: current.shiftColors,
         active: true,
+        is_default: isDefault
       };
       const { error } = await supabase
         .from('02_admin_shift_system_definitions')
@@ -582,10 +593,20 @@ export const ShiftSystemDefinition: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('02_admin_shift_system_definitions')
-        .select('system_name')
+        .select('system_name, is_default')
         .order('system_name', { ascending: true });
       if (error) throw error;
       setRegisteredSystems((data || []).map((row: any) => row.system_name).filter(Boolean));
+      
+      // Auto-load default if available and no system currently loaded
+      if (!shiftSystemName) {
+        const defaultSystem = (data || []).find((row: any) => row.is_default);
+        if (defaultSystem) {
+           // We found a default system, let's load it
+           // Use a slight timeout to ensure state is ready if called from useEffect
+           setTimeout(() => loadShiftSystem(defaultSystem.system_name), 0);
+        }
+      }
     } catch (err: any) {
       console.error('Error loading registered shift systems:', err);
       setRegisteredError(err?.message || 'Failed to load registered shift systems.');
@@ -605,7 +626,7 @@ export const ShiftSystemDefinition: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('02_admin_shift_system_definitions')
-        .select('system_name, number_of_shifts, start_date, start_time, duration_hours, shift_names, rotation_order, shift_colors, active')
+        .select('system_name, number_of_shifts, start_date, start_time, duration_hours, shift_names, rotation_order, shift_colors, active, is_default')
         .eq('system_name', name)
         .single();
       if (error) throw error;
@@ -615,6 +636,8 @@ export const ShiftSystemDefinition: React.FC = () => {
       }
       setShiftSystemName((data as any).system_name || name);
       setLastLoadedSystemName((data as any).system_name || name);
+      setIsDefault(!!(data as any).is_default);
+      
       const loaded: PatternDef = {
         patternName: 'Pattern 1',
         numberOfShifts: (data as any).number_of_shifts ?? 1,
@@ -722,6 +745,19 @@ export const ShiftSystemDefinition: React.FC = () => {
                   style={{ flex: 1 }}
                 />
               )}
+            </InlineRow>
+            <InlineRow style={{ marginTop: 10 }}>
+              <input
+                type="checkbox"
+                id="isDefault"
+                checked={isDefault}
+                onChange={(e) => setIsDefault(e.target.checked)}
+                disabled={viewMode}
+                style={{ width: 18, height: 18, cursor: viewMode ? 'not-allowed' : 'pointer' }}
+              />
+              <Label htmlFor="isDefault" style={{ marginBottom: 0, cursor: viewMode ? 'not-allowed' : 'pointer' }}>
+                Set as Default System (Automatically displayed)
+              </Label>
             </InlineRow>
           </FieldColumn>
 

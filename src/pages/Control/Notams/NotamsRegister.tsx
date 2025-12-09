@@ -139,23 +139,12 @@ const Table = styled.table`
   }
 `;
 
-const StatusBadge = styled.span<{ $status: string }>`
+const StatusBadge = styled.span<{ $color: string }>`
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 0.85rem;
   font-weight: bold;
-  background-color: ${props => {
-    switch (props.$status) {
-      case 'Active':
-        return '#4CAF50';
-      case 'Cancelled':
-        return '#f44336';
-      case 'Expired':
-        return '#9e9e9e';
-      default:
-        return '#2196F3';
-    }
-  }};
+  background-color: ${props => props.$color};
   color: white;
 `;
 
@@ -343,7 +332,7 @@ const PDFContainer = styled.div`
 `;
 
 interface NotamRecord {
-  id: string;
+  id: number;
   notam_ref: string;
   date_issued: string;
   effective_from: string;
@@ -438,6 +427,25 @@ export const NotamsRegister: React.FC = () => {
   // Get unique status values
   const uniqueStatuses = ['All', ...Array.from(new Set(notams.map(notam => notam.status)))];
   
+  const getDisplayStatus = (notam: NotamRecord): string => {
+    const now = new Date();
+    const effectiveTo = new Date(notam.effective_to);
+    
+    // Check if expired
+    if (notam.status === 'NOTAM is Active' && now > effectiveTo) {
+      return 'NOTAM has Expired';
+    }
+    
+    return notam.status;
+  };
+
+  const getStatusColor = (status: string): string => {
+    if (status.includes('Active')) return '#4CAF50';
+    if (status.includes('Cancelled')) return '#f44336';
+    if (status.includes('Expired')) return '#9e9e9e';
+    return '#2196F3';
+  };
+
   return (
     <MainContent aria-label="Main content">
       {/* Header Section */}
@@ -504,6 +512,7 @@ export const NotamsRegister: React.FC = () => {
               <tr>
                 <th>NOTAM #</th>
                 <th>Category</th>
+                <th>New Info</th>
                 <th>Date Issued</th>
                 <th>Effective From</th>
                 <th>Effective To</th>
@@ -516,19 +525,19 @@ export const NotamsRegister: React.FC = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <LoadingMessage>Loading NOTAM records...</LoadingMessage>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <ErrorMessage>{error}</ErrorMessage>
                   </td>
                 </tr>
               ) : filteredNotams.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: 'center', padding: '20px' }}>
+                  <td colSpan={10} style={{ textAlign: 'center', padding: '20px' }}>
                     {statusFilter === 'All' 
                       ? 'No NOTAM records found. Use the NOTAM Capture tool to create entries.'
                       : `No NOTAM records found with status "${statusFilter}".`
@@ -538,14 +547,15 @@ export const NotamsRegister: React.FC = () => {
               ) : (
                 currentNotams.map((notam) => (
                   <tr key={notam.id}>
-                    <td>{notam.category_text || 'N/A'}</td>
+                    <td>{notam.notam_ref || 'N/A'}</td>
                     <td>{notam.category}</td>
+                    <td>{notam.category_text || 'N/A'}</td>
                     <td>{formatDateTime(notam.date_issued)}</td>
                     <td>{formatDateTime(notam.effective_from)}</td>
                     <td>{formatDateTime(notam.effective_to)}</td>
                     <td>{notam.description}</td>
                     <td>{notam.actions_taken || 'N/A'}</td>
-                    <td><StatusBadge $status={notam.status}>{notam.status}</StatusBadge></td>
+                    <td><StatusBadge $color={getStatusColor(getDisplayStatus(notam))}>{getDisplayStatus(notam)}</StatusBadge></td>
                     <td>
                       {notam.document_url ? (
                         <ActionButton

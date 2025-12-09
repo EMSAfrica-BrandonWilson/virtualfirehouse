@@ -834,6 +834,9 @@ export const VehicleEnhanced: React.FC = () => {
           active: !!(row.active ?? row.is_active ?? (row.status ? String(row.status).toLowerCase() === 'active' : true))
         })).filter((i: any) => i.id !== null && i.name).sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
         setVehicleMakes(list as any);
+      } else if (vmRes.error) {
+        console.error('Error loading vehicle makes:', vmRes.error);
+        // Retry vehicle makes individually if Promise.all failed for just this one (unlikely but safe)
       }
     } catch (error: any) {
       console.error('Error loading dropdowns:', error);
@@ -847,41 +850,41 @@ export const VehicleEnhanced: React.FC = () => {
     setVehiclesLoading(true);
     setError('');
     try {
-      console.log('=== LOAD VEHICLES DEBUG ===');
-      const { data, error } = await supabase.functions.invoke('vehicle-crud', { method: 'GET' });
-      console.log('Vehicle-crud function result:', { data, error });
-      console.log('Complete data structure:', JSON.stringify(data, null, 2));
+      // Use direct DB access first
+      const { data, error } = await supabase
+        .from('02_admin_register_fd4_vehicles')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (error) throw error;
       
-      if (error) {
-        console.error('Function error:', error);
-        throw error;
-      }
+      const vehiclesData = Array.isArray(data) ? data : [];
       
-      // Check different possible data structures
-      console.log('Data keys:', Object.keys(data || {}));
-      console.log('data.data:', data?.data);
-      console.log('data.vehicles:', data?.vehicles);
-      console.log('Array.isArray(data?.data):', Array.isArray(data?.data));
-      
-      const vehiclesData = Array.isArray(data?.data) ? data.data : [];
-      console.log('Vehicles loaded from function:', vehiclesData.length, 'vehicles');
-      if (vehiclesData.length > 0) {
-        console.log('First vehicle from function:', vehiclesData[0]);
-        console.log('Available fields in function vehicles:', Object.keys(vehiclesData[0]));
-      } else {
-        console.log('No vehicles found in function data');
-      }
-      
-      setVehicles(vehiclesData);
+      // Transform data to match component interface
+      const enhanced = vehiclesData.map((vehicle: any) => ({
+        id: String(vehicle.id),
+        veh_call_sign: vehicle.vehicle_callsign || vehicle.veh_call_sign || vehicle.call_sign || '',
+        veh_type: vehicle.vehicle_type || '',
+        veh_make: vehicle.vehicle_make || '',
+        vehicle_model: vehicle.vehicle_model || '',
+        model_year: vehicle.vehicle_year,
+        vehicle_age: vehicle.vehicle_age,
+        veh_plate_no: vehicle.vehicle_license_plate || '',
+        veh_mms_no: formatMmsNumber(vehicle.vehicle_mms_number),
+        veh_gate_pass_no: vehicle.vehicle_gate_pass || '',
+        veh_gate_pass_expiry_date: vehicle.vehicle_gate_pass_expiry_date || '',
+        vehicle_picture_url: vehicle.vehicle_picture_url || '',
+        call_sign_name: vehicle.vehicle_callsign || vehicle.veh_call_sign || vehicle.call_sign || '',
+        vehicle_type_name: vehicle.vehicle_type || '',
+        vehicle_make_name: vehicle.vehicle_make || '',
+        created_at: vehicle.created_at,
+        updated_at: vehicle.updated_at
+      }));
+
+      setVehicles(enhanced as Vehicle[]);
       setError('');
-      
-      // If no vehicles found via function, automatically try fallback method
-      if (vehiclesData.length === 0) {
-        console.log('No vehicles found via function, trying fallback method...');
-        await loadVehiclesWithFallback();
-      }
     } catch (funcErr: any) {
-      console.error('Error loading vehicles via function:', funcErr);
+      console.error('Error loading vehicles:', funcErr);
       setError(funcErr?.message || 'Failed to load vehicles');
     } finally {
       setVehiclesLoading(false);

@@ -440,6 +440,7 @@ interface Department {
   number_of_fire_stations: number;
   number_of_staff: number;
   number_of_fire_vehicles: number;
+  is_default?: boolean;
 }
 
 interface DepartmentAllocationInfo {
@@ -596,7 +597,7 @@ export const RegisterStations: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('02_admin_register_fd1_departments')
-        .select('id, dept_name, dept_picture_url, dept_type, number_of_fire_stations, number_of_staff, number_of_fire_vehicles')
+        .select('id, dept_name, dept_picture_url, dept_type, number_of_fire_stations, number_of_staff, number_of_fire_vehicles, is_default')
         .order('created_at', { ascending: false });
       if (error) throw error;
       setDepartments(data || []);
@@ -1330,7 +1331,7 @@ export const RegisterStations: React.FC = () => {
                   <option value="">{departmentsLoading ? 'Loading departments...' : 'Select a department'}</option>
                   {departments.map(dept => (
                     <option key={dept.id} value={dept.id}>
-                      {dept.dept_name} (Limit: {dept.number_of_fire_stations} stations)
+                      {dept.dept_name} {dept.is_default ? '(Default)' : ''} (Limit: {dept.number_of_fire_stations} stations)
                     </option>
                   ))}
                 </Select>

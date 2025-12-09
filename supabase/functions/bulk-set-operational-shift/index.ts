@@ -63,10 +63,10 @@ Deno.serve(async (req: Request) => {
 
     const shiftId = targetShift.id;
 
-    // 2) Bulk update all staff_basic_info rows
+    // 2) Bulk update all 02_admin_staff_1_registration rows
     // Use a filter that matches all rows to comply with PostgREST restrictions
     const updateRes = await fetch(
-      `${supabaseUrl}/rest/v1/staff_basic_info?staff_id=not.is.null`,
+      `${supabaseUrl}/rest/v1/02_admin_staff_1_registration?staff_id=not.is.null`,
       {
         method: 'PATCH',
         headers: {
@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
     // 3) Return a simple success payload
     return new Response(JSON.stringify({
       data: {
-        message: `Operational Shift set to '${shiftName}' for all staff_basic_info rows`,
+        message: `Operational Shift set to '${shiftName}' for all staff rows`,
         operational_shift_id: shiftId
       }
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

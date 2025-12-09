@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
@@ -116,7 +117,7 @@ const CancelButton = styled.button`
   background-color: #6c757d; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer;
 `;
 
-export const StationsReports: React.FC = () => {
+export const AllStationsReports: React.FC = () => {
   const navigate = useNavigate();
   const [stations, setStations] = useState<any[]>([]);
   const [stationsLoading, setStationsLoading] = useState(false);
@@ -130,37 +131,34 @@ export const StationsReports: React.FC = () => {
     setStationsLoading(true);
     setError('');
     try {
-      // First, get the default department ID
-      const { data: defaultDept, error: deptError } = await supabase
+      // Fetch stations
+      const { data: stationsData, error: stationsError } = await supabase
+        .from('02_admin_register_fd3_stations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (stationsError) throw stationsError;
+
+      // Fetch departments
+      const { data: departmentsData, error: departmentsError } = await supabase
         .from('02_admin_register_fd1_departments')
-        .select('id, dept_name')
-        .eq('is_default', true)
-        .single();
+        .select('id, dept_name');
 
-      if (deptError) {
-        // If no default found (or multiple, though single() handles that), we might want to show all or none.
-        // For now, let's assume we show all if no default is set, or handle the error gracefully.
-        // But the requirement says "list of fire stations for the 'Default' Fire Department".
-        // So if no default, we probably shouldn't show any, or show a message.
-        // Let's log it and fall back to empty or show specific error.
-        console.warn('No default department found or error fetching it:', deptError);
-        setStations([]); // Or handle as "No default department configured"
-        if (deptError.code !== 'PGRST116') { // PGRST116 is "The result contains 0 rows"
-           throw deptError;
-        }
-        return; 
+      if (departmentsError) throw departmentsError;
+
+      // Map departments to a lookup object
+      const deptMap = new Map();
+      if (departmentsData) {
+        departmentsData.forEach((d: any) => deptMap.set(d.id, d.dept_name));
       }
 
-      if (defaultDept) {
-        const { data, error } = await supabase
-          .from('02_admin_register_fd3_stations')
-          .select('*')
-          .eq('department_id', defaultDept.id)
-          .order('created_at', { ascending: false });
+      // Attach department names to stations
+      const stationsWithDept = (stationsData || []).map((station: any) => ({
+        ...station,
+        dept_name: deptMap.get(station.department_id) || 'Unknown Department'
+      }));
 
-        if (error) throw error;
-        setStations(data || []);
-      }
+      setStations(stationsWithDept);
     } catch (err: any) {
       console.error('Failed to load stations:', err);
       setError(err.message || 'Failed to load stations');
@@ -217,11 +215,18 @@ export const StationsReports: React.FC = () => {
         }
       });
 
-      const sorted = [...stations].sort((a, b) => (a.fire_station_name || '').localeCompare(b.fire_station_name || ''));
+      const sorted = [...stations].sort((a, b) => {
+        // Sort by Department Name first
+        const deptCompare = (a.dept_name || '').localeCompare(b.dept_name || '');
+        if (deptCompare !== 0) return deptCompare;
+        // Then by Station Name
+        return (a.fire_station_name || '').localeCompare(b.fire_station_name || '');
+      });
       const head = [[
-        'Station Name','City','Address','Staff','Vehicles','Phone','Contact','Email','Telephone'
+        'Department', 'Station Name','City','Address','Staff','Vehicles','Phone','Contact','Email','Telephone'
       ]];
       const body = sorted.map(station => [
+        station.dept_name || '-',
         station.fire_station_name || '-',
         station.fire_station_city || '-',
         [
@@ -244,8 +249,8 @@ export const StationsReports: React.FC = () => {
       const timestamp = Date.now();
       const pdfKey = `pdf_Registered_Fire_Stations_${timestamp}`;
       sessionStorage.setItem(pdfKey, pdfDataUri);
-      sessionStorage.setItem('pdf_source_section', '/admin/register/stations/reports');
-      sessionStorage.setItem('pdf_source_path', '/admin/register/stations/reports');
+      sessionStorage.setItem('pdf_source_section', '/admin/register/stations/all');
+      sessionStorage.setItem('pdf_source_path', '/admin/register/stations/all');
       navigate(`/pdf-viewer/${pdfKey}`);
       setSuccess('PDF report generated successfully! Opening in viewer...');
     } catch (err: any) {
@@ -257,10 +262,10 @@ export const StationsReports: React.FC = () => {
     <MainContent aria-label="Main content">
       <FlexRow>
         <Column style={{ flex: '1', minWidth: '0' }}>
-          <Title>Registered Fire Stations</Title>
+          <Title>All Registered Fire Stations</Title>
           <Divider aria-hidden="true" />
           <Paragraph>
-            This page displays the directory of all registered fire stations for the default fire department. Use the Print to PDF button to export the current list to a standardized report and the Refresh button to reload the latest data. You can also edit a station or remove it where necessary.
+            This page displays the directory of all registered fire stations in the system. Use the Print to PDF button to export the current list to a standardized report and the Refresh button to reload the latest data. You can also edit a station or remove it where necessary.
           </Paragraph>
         </Column>
         <ImageColumn>
@@ -278,6 +283,7 @@ export const StationsReports: React.FC = () => {
         <StationTable>
           <thead>
             <tr>
+              <th>Department</th>
               <th>Station Name</th>
               <th>City</th>
               <th>Address</th>
@@ -291,9 +297,14 @@ export const StationsReports: React.FC = () => {
           </thead>
           <tbody>
             {[...stations]
-              .sort((a, b) => (a.fire_station_name || '').localeCompare(b.fire_station_name || ''))
+              .sort((a, b) => {
+                const deptCompare = (a.dept_name || '').localeCompare(b.dept_name || '');
+                if (deptCompare !== 0) return deptCompare;
+                return (a.fire_station_name || '').localeCompare(b.fire_station_name || '');
+              })
               .map(station => (
               <tr key={station.id}>
+                <td><strong>{station.dept_name}</strong></td>
                 <td><strong>{station.fire_station_name}</strong></td>
                 <td>{station.fire_station_city || '-'}</td>
                 <td>

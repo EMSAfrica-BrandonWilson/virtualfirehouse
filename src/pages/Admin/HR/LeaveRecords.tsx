@@ -403,7 +403,7 @@ const SearchResultDetails = styled.div`
 `;
 
 interface LeaveRecord {
-  id: string;
+  id: number;
   staff_id: number;
   employee_name: string;
   employee_number: string;
@@ -553,7 +553,7 @@ export const LeaveRecords: React.FC = () => {
       const { data, error } = await supabase
         .from('02_admin_hr_04_leave_management')
         .select('*')
-        .order('first_leave_date', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       setLeaveRecords(data || []);
@@ -947,6 +947,7 @@ export const LeaveRecords: React.FC = () => {
 
       if (deleteError) throw deleteError;
 
+      handleCancelEdit();
       setSuccess('Leave record deleted successfully!');
       await fetchLeaveRecords();
       

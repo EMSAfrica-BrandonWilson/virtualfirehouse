@@ -326,11 +326,20 @@ export const VehiclesRegistered: React.FC = () => {
 
   const loadDepartments = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('get-departments', {
-        method: 'GET'
-      });
+      const { data, error } = await supabase
+        .from('02_admin_register_fd1_departments')
+        .select('*');
+
       if (error) throw new Error(error.message || 'Failed to load departments');
-      if (data?.data?.departments) setDepartments(data.data.departments);
+      
+      const list = (data || []).map((row: any) => ({
+        id: row.id ?? row.dept_id ?? row.department_id ?? row.pk ?? null,
+        dept_name: row.dept_name ?? row.department_name ?? row.name ?? '',
+        dept_type: row.dept_type ?? row.department_type ?? '',
+        dept_picture_url: row.dept_picture_url ?? row.department_logo_url ?? null
+      })).filter((d: any) => d.id !== null && d.dept_name);
+      
+      setDepartments(list);
     } catch (err: any) {
       console.error('Error loading departments:', err);
       setError(err.message || 'Failed to load departments');
@@ -376,9 +385,11 @@ export const VehiclesRegistered: React.FC = () => {
     setError('');
     setSuccess('');
     try {
-      const { error } = await supabase.functions.invoke('vehicle-crud', {
-        body: { action: 'delete', vehicleId: pendingDelete.id }
-      });
+      const { error } = await supabase
+        .from('02_admin_register_fd4_vehicles')
+        .delete()
+        .eq('id', pendingDelete.id);
+        
       if (error) throw error;
       setSuccess('Vehicle deleted successfully!');
       setPendingDelete(null);

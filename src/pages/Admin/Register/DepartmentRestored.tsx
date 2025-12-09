@@ -471,7 +471,7 @@ export const RegisterDepartmentRestored: React.FC = () => {
         .select('*');
       if (!error) {
         const mapped = (data || []).map((t: any) => t.type_name ?? t.dept_type ?? t.name ?? t.label).filter(Boolean);
-        setDepartmentTypes(mapped);
+        setDepartmentTypes(mapped.sort((a: string, b: string) => a.localeCompare(b)));
       }
     } catch {}
   };
@@ -483,7 +483,7 @@ export const RegisterDepartmentRestored: React.FC = () => {
         .select('*');
       if (!error) {
         const mapped = (data || []).map((c: any) => c.country_name ?? c.name ?? c.label).filter(Boolean);
-        setCountries(mapped);
+        setCountries(mapped.sort((a: string, b: string) => a.localeCompare(b)));
       }
     } catch {}
   };
@@ -495,7 +495,7 @@ export const RegisterDepartmentRestored: React.FC = () => {
         .select('*');
       if (!error) {
         const mapped = (data || []).map((s: any) => s.status_name ?? s.name ?? s.label).filter(Boolean);
-        setOperationalStatuses(mapped);
+        setOperationalStatuses(mapped.sort((a: string, b: string) => a.localeCompare(b)));
       }
     } catch {}
   };
@@ -517,6 +517,7 @@ export const RegisterDepartmentRestored: React.FC = () => {
         setEditingId(department.id);
         setOriginalDeptName(department.dept_name || '');
         setExistingLogoUrl(department.dept_picture_url || '');
+        setDisplayInHeader(department.is_default || false); // Load default status
         setDepartmentData({
           deptName: department.dept_name || '',
           deptType: department.dept_type || '',
@@ -538,7 +539,6 @@ export const RegisterDepartmentRestored: React.FC = () => {
         
         setSuccess('Editing existing department data. Make your changes and submit to update.');
         setIsFormActive(true);
-        setDisplayInHeader(false);
       }
     } catch (error) {
       console.error('Error parsing editing data from sessionStorage:', error);
@@ -650,6 +650,7 @@ export const RegisterDepartmentRestored: React.FC = () => {
         setEditingId(data.id);
         setOriginalDeptName(data.dept_name || '');
         setExistingLogoUrl(data.dept_picture_url || '');
+        setDisplayInHeader(data.is_default || false); // Load default status
         setDepartmentData({
           deptName: data.dept_name || '',
           deptType: data.dept_type || '',
@@ -672,7 +673,6 @@ export const RegisterDepartmentRestored: React.FC = () => {
         setFieldErrors(prev => ({ ...prev, deptName: false }));
         setSuccess('Existing department loaded. You can edit and submit to update.');
         setIsFormActive(true);
-        setDisplayInHeader(false);
       }
     } catch (err) {
       setError('Failed to load existing department details.');
@@ -722,6 +722,15 @@ export const RegisterDepartmentRestored: React.FC = () => {
         fileName = departmentData.deptPicture.name;
       }
 
+      // If this department is being set as default (displayInHeader),
+      // we need to unset is_default for all other departments first
+      if (displayInHeader) {
+        await supabase
+          .from('02_admin_register_fd1_departments')
+          .update({ is_default: false })
+          .neq('id', -1); // Unset all
+      }
+
       // Helper to persist department to localStorage in reports-friendly shape
       const persistToLocalStorage = (idForStorage: number) => {
         try {
@@ -745,6 +754,7 @@ export const RegisterDepartmentRestored: React.FC = () => {
             description: departmentData.description || '',
             operational_status: departmentData.operationalStatus || '',
             dept_picture_url: existingLogoUrl || '',
+            is_default: displayInHeader,
             created_at: nowIso,
             updated_at: nowIso
           };
@@ -779,7 +789,8 @@ export const RegisterDepartmentRestored: React.FC = () => {
           contact_email: departmentData.contactEmail || '',
           description: departmentData.description || '',
           operational_status: departmentData.operationalStatus || '',
-          dept_picture_url: existingLogoUrl || ''
+          dept_picture_url: existingLogoUrl || '',
+          is_default: displayInHeader
         };
         const { data: updated, error } = await supabase
           .from('02_admin_register_fd1_departments')
@@ -821,7 +832,8 @@ export const RegisterDepartmentRestored: React.FC = () => {
           contact_email: departmentData.contactEmail || '',
           description: departmentData.description || '',
           operational_status: departmentData.operationalStatus || '',
-          dept_picture_url: ''
+          dept_picture_url: '',
+          is_default: displayInHeader
         };
         const { data: created, error } = await supabase
           .from('02_admin_register_fd1_departments')

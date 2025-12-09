@@ -777,13 +777,33 @@ export const RegisterStaffEnhanced: React.FC = () => {
       console.log('Dropdown options response:', data); // Debug log
 
       if (data?.data) {
+        // Fetch operational shifts directly from the table
+        let operationalShiftsData: OperationalShift[] = [];
+        try {
+          const { data: opShifts, error: opError } = await supabase
+            .from('02_admin_register_fd2_operational_shifts')
+            .select('id, shift_name, description, active')
+            .order('shift_name', { ascending: true });
+            
+          if (!opError && opShifts) {
+            operationalShiftsData = opShifts.map((s: any) => ({
+              id: s.id,
+              name: s.shift_name,
+              description: s.description || '',
+              active: s.active
+            }));
+          }
+        } catch (err) {
+          console.error('Error fetching operational shifts table:', err);
+        }
+
         // The response is wrapped in data.data structure
         const options = {
           positions: data.data.positions || [],
           ranks: data.data.ranks || [],
           emergencyContactRelationships: data.data.emergencyContactRelationships || [],
           employmentStatus: data.data.employmentStatus || [],
-          operationalShifts: data.data.operationalShifts || [],
+          operationalShifts: operationalShiftsData.length > 0 ? operationalShiftsData : (data.data.operationalShifts || []),
           fireStations: [] // Fire stations will be loaded separately based on department
         };
         setDropdownOptions(options);
@@ -1369,7 +1389,6 @@ export const RegisterStaffEnhanced: React.FC = () => {
                 >
                   <option value="">Select operational shift (optional)</option>
                   {dropdownOptions.operationalShifts
-                    .filter(shift => shift.active)
                     .map(shift => (
                       <option key={shift.id} value={shift.id}>
                         {shift.name}

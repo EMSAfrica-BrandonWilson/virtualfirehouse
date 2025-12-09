@@ -312,16 +312,22 @@ export const StaffReports: React.FC = () => {
 
   const loadOperationalShifts = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('dropdown-options-crud', {
-        method: 'GET'
-      });
+      const { data, error } = await supabase
+        .from('02_admin_register_fd2_operational_shifts')
+        .select('id, shift_name, description, active')
+        .order('shift_name', { ascending: true });
 
       if (error) {
         throw new Error(error.message || 'Failed to load operational shifts');
       }
 
-      if (data?.data?.operationalShifts) {
-        setOperationalShifts(data.data.operationalShifts);
+      if (data) {
+        setOperationalShifts(data.map(s => ({
+          id: s.id,
+          name: s.shift_name,
+          description: s.description || '',
+          active: s.active
+        })));
       }
     } catch (error: any) {
       console.error('Error loading operational shifts:', error);

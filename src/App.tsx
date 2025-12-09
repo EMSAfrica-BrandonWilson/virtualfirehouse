@@ -97,6 +97,7 @@ const EquipmentLanding = lazy(() => import('./pages/Admin/Register/EquipmentLand
 const ShiftSystemsLanding = lazy(() => import('./pages/Admin/Register/ShiftSystemsLanding').then(m => ({ default: m.ShiftSystemsLanding })));
 const DepartmentReports = lazy(() => import('./pages/Admin/Register/DepartmentReports').then(m => ({ default: m.DepartmentReports })));
 const StationsReports = lazy(() => import('./pages/Admin/Register/StationsReports').then(m => ({ default: m.StationsReports })));
+const AllStationsReports = lazy(() => import('./pages/Admin/Register/AllStationsReports').then(m => ({ default: m.AllStationsReports })));
 const FireStationDetails = lazy(() => import('./pages/Admin/Register/FireStationDetails'));
 const StaffReports = lazy(() => import('./pages/Admin/Register/StaffReports').then(m => ({ default: m.StaffReports })));
 const StaffBasicInfo = lazy(() => import('./pages/Admin/Register/Staff/StaffBasicInfo').then(m => ({ default: m.StaffBasicInfo })));
@@ -487,6 +488,14 @@ function App() {
                 <MainMaster>
                   <ProtectedRoute>
                     <StationsReports />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+
+              <Route path="/admin/register/stations/all" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <AllStationsReports />
                   </ProtectedRoute>
                 </MainMaster>
               } />

@@ -300,23 +300,12 @@ const Table = styled.table`
   }
 `;
 
-const StatusBadge = styled.span<{ $status: string }>`
+const StatusBadge = styled.span<{ $color: string }>`
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 0.85rem;
   font-weight: bold;
-  background-color: ${props => {
-    switch (props.$status) {
-      case 'Active':
-        return '#4CAF50';
-      case 'Cancelled':
-        return '#f44336';
-      case 'Expired':
-        return '#9e9e9e';
-      default:
-        return '#2196F3';
-    }
-  }};
+  background-color: ${props => props.$color};
   color: white;
 `;
 
@@ -387,7 +376,7 @@ interface NotamFormData {
 }
 
 interface NotamRecord extends NotamFormData {
-  id: string;
+  id: number;
   document_url: string | null;
   created_at: string;
   updated_at: string;
@@ -414,7 +403,7 @@ export const NotamCapture: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [existingDocumentUrl, setExistingDocumentUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -597,6 +586,25 @@ export const NotamCapture: React.FC = () => {
     if (fileInput) fileInput.value = '';
   };
 
+  const getDisplayStatus = (notam: NotamRecord): string => {
+    const now = new Date();
+    const effectiveTo = new Date(notam.effective_to);
+    
+    // Check if expired
+    if (notam.status === 'NOTAM is Active' && now > effectiveTo) {
+      return 'NOTAM has Expired';
+    }
+    
+    return notam.status;
+  };
+
+  const getStatusColor = (status: string): string => {
+    if (status.includes('Active')) return '#4CAF50';
+    if (status.includes('Cancelled')) return '#f44336';
+    if (status.includes('Expired')) return '#9e9e9e';
+    return '#2196F3';
+  };
+
   const handleEdit = (notam: NotamRecord) => {
     setFormData({
       notam_ref: notam.notam_ref,
@@ -616,7 +624,7 @@ export const NotamCapture: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = async (id: string, notamRef: string) => {
+  const handleDelete = async (id: number, notamRef: string) => {
     if (!window.confirm(`Are you sure you want to delete NOTAM ${notamRef}?`)) {
       return;
     }
@@ -904,6 +912,57 @@ export const NotamCapture: React.FC = () => {
             </ButtonGroup>
           </form>
         </FormContainer>
+      </Section>
+
+      <Section>
+        {/* Table content previously added via search replace */}
+        <SubTitle>NOTAM Records</SubTitle>
+        <TableContainer>
+          <Table>
+            <thead>
+              <tr>
+                <th>NOTAM Address</th>
+                <th>Category</th>
+                <th>Date Issued</th>
+                <th>Effective From</th>
+                <th>Effective To</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {notams.map(notam => {
+                const displayStatus = getDisplayStatus(notam);
+                return (
+                  <tr key={notam.id}>
+                    <td>{notam.notam_ref || 'N/A'}</td>
+                    <td>{notam.category}</td>
+                    <td>{formatDateTime(notam.date_issued)}</td>
+                    <td>{formatDateTime(notam.effective_from)}</td>
+                    <td>{formatDateTime(notam.effective_to)}</td>
+                    <td><StatusBadge $color={getStatusColor(displayStatus)}>{displayStatus}</StatusBadge></td>
+                    <td>
+                      <ActionButton 
+                        $variant="edit"
+                        onClick={() => handleEdit(notam)}
+                        disabled={loading}
+                      >
+                        Edit
+                      </ActionButton>
+                      <ActionButton 
+                        $variant="delete"
+                        onClick={() => handleDelete(notam.id, notam.notam_ref)}
+                        disabled={loading}
+                      >
+                        Delete
+                      </ActionButton>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </TableContainer>
       </Section>
     </MainContent>
   );

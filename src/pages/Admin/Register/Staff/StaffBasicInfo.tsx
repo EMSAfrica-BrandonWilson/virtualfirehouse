@@ -734,60 +734,7 @@ export const StaffBasicInfo: React.FC = () => {
 
   const loadOperationalShifts = async () => {
     try {
-      // First, try to load the active shift system definition and use its Names of Shifts
-      const { data: defRows, error: defErr } = await supabase
-        .from('shift_system_definitions')
-        .select('shift_names, active')
-        .eq('active', true)
-        .limit(1);
-
-      const shiftNames: string[] | null = (!defErr && Array.isArray(defRows) && defRows.length > 0)
-        ? (defRows[0]?.shift_names as string[] | null)
-        : null;
-
-      if (Array.isArray(shiftNames) && shiftNames.length > 0) {
-        // Helper to ensure "Day Shift" is present in options
-        const includeDayShift = (list: OperationalShift[]): OperationalShift[] => {
-          const exists = list.some(s => (s.name || '').toLowerCase() === 'day shift');
-          return exists ? list : [...list, { id: -999, name: 'Day Shift', description: '', active: true }];
-        };
-        // Map definition names to existing operational_shifts rows by shift_name
-        const { data, error } = await supabase
-          .from('02_admin_register_fd2_operational_shifts')
-          .select('id, shift_name, description, active')
-          .in('shift_name', shiftNames)
-          .order('shift_name', { ascending: true });
-
-        if (error) throw error;
-
-        const transformedShifts = (data || []).map(shift => ({
-          id: shift.id,
-          name: shift.shift_name,
-          description: shift.description || '',
-          active: typeof shift.active === 'boolean' ? shift.active : true
-        }));
-
-        // Only include active shifts and ensure order follows definition as closely as possible
-        const activeShifts = transformedShifts.filter((shift: OperationalShift) => shift.active !== false);
-        const ordered = shiftNames
-          .map(name => activeShifts.find(s => s.name === name))
-          .filter((s): s is OperationalShift => !!s);
-        if (ordered.length > 0) {
-          setOperationalShifts(includeDayShift(ordered));
-          return; // Done if definition provided names
-        }
-        // If definition exists but no matching rows, synthesize options from definition names
-        const syntheticBase = shiftNames.map((name, idx) => ({
-          id: -(idx + 1),
-          name,
-          description: '',
-          active: true,
-        }));
-        setOperationalShifts(includeDayShift(syntheticBase));
-        return;
-      }
-
-      // Fallback: load all operational_shifts if no active definition found or definition call failed
+      console.log('Loading operational shifts from 02_admin_register_fd2_operational_shifts...');
       const { data, error } = await supabase
         .from('02_admin_register_fd2_operational_shifts')
         .select('id, shift_name, description, active')
@@ -795,17 +742,16 @@ export const StaffBasicInfo: React.FC = () => {
 
       if (error) throw error;
 
+      console.log('Operational shifts loaded:', data);
+
       const transformedShifts = (data || []).map(shift => ({
         id: shift.id,
         name: shift.shift_name,
         description: shift.description || '',
-        active: typeof shift.active === 'boolean' ? shift.active : true
+        active: shift.active
       }));
-      const activeShifts = transformedShifts.filter((shift: OperationalShift) => shift.active !== false);
-      const existsDay = activeShifts.some(s => (s.name || '').toLowerCase() === 'day shift');
-      setOperationalShifts(
-        existsDay ? activeShifts : [...activeShifts, { id: -999, name: 'Day Shift', description: '', active: true }]
-      );
+
+      setOperationalShifts(transformedShifts);
     } catch (error: any) {
       console.error('Error loading operational shifts:', error);
     }

@@ -265,6 +265,7 @@ interface Department {
   description: string;
   operational_status: string;
   dept_picture_url: string | null;
+  is_default: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -276,7 +277,6 @@ export const DepartmentReports: React.FC = () => {
   const { imageUrl, loading: imageLoading, error: imageError } = usePageImage('department-reports', '/images/daco-new-logo.jpg');
 
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [serverIds, setServerIds] = useState<Set<number>>(new Set());
   const [departmentsLoading, setDepartmentsLoading] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [error, setError] = useState('');
@@ -321,43 +321,18 @@ export const DepartmentReports: React.FC = () => {
           description: dept.description,
           operational_status: dept.operational_status,
           dept_picture_url: dept.dept_picture_url,
+          is_default: dept.is_default,
           created_at: dept.created_at,
           updated_at: dept.updated_at
         }));
 
-        // Track server IDs for dedup and delete decisions
-        const ids = new Set<number>(mappedDepartments.map(d => d.id));
-        setServerIds(ids);
-
-        // Load local departments and deduplicate by ID (prefer server)
-        let localDepartments: Department[] = [];
-        try {
-          localDepartments = JSON.parse(localStorage.getItem(LOCAL_STORAGE_DEPARTMENTS_KEY) || '[]');
-        } catch (lsErr) {
-          console.warn('Failed to read local departments:', lsErr);
-        }
-        const localUnique = localDepartments.filter(d => !ids.has(d.id));
-        const combined = [...mappedDepartments, ...localUnique].sort((a, b) => {
-          const aTime = new Date(a.created_at).getTime();
-          const bTime = new Date(b.created_at).getTime();
-          return bTime - aTime;
-        });
-        setDepartments(combined);
+        setDepartments(mappedDepartments);
         setError('');
       }
     } catch (error: any) {
       console.error('Error loading departments:', error);
       setError(error.message || 'Failed to load departments');
-
-      // Fallback: load only local departments
-      try {
-        const localDepartments: Department[] = JSON.parse(localStorage.getItem(LOCAL_STORAGE_DEPARTMENTS_KEY) || '[]');
-        setServerIds(new Set());
-        setDepartments(localDepartments);
-      } catch (lsErr) {
-        console.warn('Failed to read local departments on error:', lsErr);
-        setDepartments([]);
-      }
+      setDepartments([]);
     } finally {
       setDepartmentsLoading(false);
     }
@@ -370,35 +345,25 @@ export const DepartmentReports: React.FC = () => {
 
     setDeletingIds(prev => new Set(prev).add(departmentId));
     try {
-      // Delete via backend if the record exists on server; otherwise delete locally
-      if (serverIds.has(departmentId)) {
-        const { error } = await supabase.functions.invoke('departments-crud', {
-          method: 'DELETE',
-          body: { departmentId }
-        });
-        if (error) {
-          throw new Error(error.message || 'Failed to delete department');
-        }
-        // Cleanup any local copy with same ID
-        try {
-          const localDepartments: Department[] = JSON.parse(localStorage.getItem(LOCAL_STORAGE_DEPARTMENTS_KEY) || '[]');
-          const after = localDepartments.filter(d => d.id !== departmentId);
-          localStorage.setItem(LOCAL_STORAGE_DEPARTMENTS_KEY, JSON.stringify(after));
-        } catch {}
-        setSuccess('Department deleted successfully!');
-        await loadDepartments();
-      } else {
-        try {
-          const localDepartments: Department[] = JSON.parse(localStorage.getItem(LOCAL_STORAGE_DEPARTMENTS_KEY) || '[]');
-          const after = localDepartments.filter(d => d.id !== departmentId);
-          localStorage.setItem(LOCAL_STORAGE_DEPARTMENTS_KEY, JSON.stringify(after));
-          setDepartments(prev => prev.filter(d => d.id !== departmentId));
-          setSuccess('Department deleted successfully!');
-        } catch (lsErr) {
-          console.warn('Local delete failed:', lsErr);
-          throw new Error('Failed to delete local department');
-        }
+      // Delete directly from database
+      const { error } = await supabase
+        .from('02_admin_register_fd1_departments')
+        .delete()
+        .eq('id', departmentId);
+
+      if (error) {
+        throw new Error(error.message || 'Failed to delete department');
       }
+
+      // Cleanup any local copy with same ID just in case
+      try {
+        const localDepartments: Department[] = JSON.parse(localStorage.getItem(LOCAL_STORAGE_DEPARTMENTS_KEY) || '[]');
+        const after = localDepartments.filter(d => d.id !== departmentId);
+        localStorage.setItem(LOCAL_STORAGE_DEPARTMENTS_KEY, JSON.stringify(after));
+      } catch {}
+
+      setSuccess('Department deleted successfully!');
+      await loadDepartments();
     } catch (error: any) {
       console.error('Error deleting department:', error);
       setError(error.message || 'Failed to delete department');
@@ -430,7 +395,8 @@ export const DepartmentReports: React.FC = () => {
       contact_email: department.contact_email || '',
       description: department.description || '',
       operational_status: department.operational_status || '',
-      dept_picture_url: department.dept_picture_url || ''
+      dept_picture_url: department.dept_picture_url || '',
+      is_default: department.is_default || false
     }));
     
     // Navigate to the registration form
@@ -628,7 +594,23 @@ export const DepartmentReports: React.FC = () => {
               <tbody>
                 {departments.map(dept => (
                   <tr key={dept.id}>
-                    <td>{dept.dept_name}</td>
+                    <td>
+                      {dept.dept_name}
+                      {dept.is_default && (
+                        <span style={{ 
+                          color: '#FF9900', 
+                          fontWeight: 'bold', 
+                          marginLeft: '8px',
+                          fontSize: '12px',
+                          background: '#FFF4E6',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          border: '1px solid #FFCC80'
+                        }}>
+                          (Default)
+                        </span>
+                      )}
+                    </td>
                     <td>{dept.dept_type || 'N/A'}</td>
                     <td>{dept.dept_country || 'N/A'}</td>
                     <td>{dept.dept_city}</td>

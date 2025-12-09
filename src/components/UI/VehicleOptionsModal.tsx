@@ -309,6 +309,8 @@ export const VehicleOptionsModal: React.FC<VehicleOptionsModalProps> = ({
     setLoading(true);
     setError('');
     try {
+      console.log('Loading data for type:', type);
+      
       if (type === 'call_signs') {
         const { data, error } = await supabase
           .from('02_admin_register_fd5_vehicle_call_signs')
@@ -338,10 +340,18 @@ export const VehicleOptionsModal: React.FC<VehicleOptionsModalProps> = ({
         list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setItems(list);
       } else if (type === 'vehicle_makes') {
+        console.log('Fetching vehicle makes from 02_admin_register_fd7_vehicle_makes');
         const { data, error } = await supabase
           .from('02_admin_register_fd7_vehicle_makes')
           .select('*');
-        if (error) throw new Error(error.message || 'Failed to load vehicle makes');
+        
+        if (error) {
+            console.error('Error fetching vehicle makes:', error);
+            throw new Error(error.message || 'Failed to load vehicle makes');
+        }
+        
+        console.log('Vehicle makes loaded:', data?.length);
+        
         const list: OptionItem[] = (data || []).map((row: any) => ({
           id: row.id ?? row.make_id ?? row.vehicle_make_id ?? row.pk ?? null,
           name: row.name ?? row.vehicle_make ?? row.vehicle_make_name ?? row.make_name ?? row.make ?? row.code ?? '',
@@ -352,6 +362,7 @@ export const VehicleOptionsModal: React.FC<VehicleOptionsModalProps> = ({
         list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         setItems(list);
       } else {
+        // Fallback for any other type to the edge function (legacy path)
         const { data, error } = await supabase.functions.invoke('dropdown-options-crud', {
           method: 'GET'
         });
@@ -666,7 +677,7 @@ export const VehicleOptionsModal: React.FC<VehicleOptionsModalProps> = ({
     setError('');
     setSuccess('');
     try {
-      const table = type === 'call_signs' ? '02_admin_register_fd5_vehicle_call_signs' : (type === 'vehicle_types' ? '02_admin_register_fd6_vehicle_types' : null);
+      const table = type === 'call_signs' ? '02_admin_register_fd5_vehicle_call_signs' : (type === 'vehicle_types' ? '02_admin_register_fd6_vehicle_types' : (type === 'vehicle_makes' ? '02_admin_register_fd7_vehicle_makes' : null));
       if (table) {
         const { error } = await supabase
           .from(table)
@@ -707,7 +718,7 @@ export const VehicleOptionsModal: React.FC<VehicleOptionsModalProps> = ({
     for (const id of Array.from(selectedIds)) {
       const item = items.find(i => i.id === id);
       try {
-        const table = type === 'call_signs' ? '02_admin_register_fd5_vehicle_call_signs' : (type === 'vehicle_types' ? '02_admin_register_fd6_vehicle_types' : null);
+        const table = type === 'call_signs' ? '02_admin_register_fd5_vehicle_call_signs' : (type === 'vehicle_types' ? '02_admin_register_fd6_vehicle_types' : (type === 'vehicle_makes' ? '02_admin_register_fd7_vehicle_makes' : null));
         if (table) {
           const { error } = await supabase
             .from(table)

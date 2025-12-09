@@ -486,7 +486,19 @@ export const StaffDropdownManagement: React.FC = () => {
         setRanks(data.data.ranks || []);
         setRelationships(data.data.emergencyContactRelationships || []);
         setEmploymentStatus(data.data.employmentStatus || []);
-        setOperationalShifts(data.data.operationalShifts || []);
+        
+        // Fetch operational shifts directly from table
+        const { data: opShifts, error: opError } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .select('*')
+          .order('shift_name', { ascending: true });
+          
+        if (opError) throw opError;
+        
+        setOperationalShifts((opShifts || []).map((s: any) => ({
+          ...s,
+          // Ensure fields match the OperationalShift interface if there are differences
+        })) as OperationalShift[]);
       }
     } catch (error: any) {
       console.error('Error loading dropdown options:', error);
@@ -529,36 +541,54 @@ export const StaffDropdownManagement: React.FC = () => {
     setSuccess('');
 
     try {
-      const payload = {
-        type: activeTab,
-        data: {
-          ...(activeTab === 'operational_shifts' 
-            ? { shift_name: formData.name.trim() }
-            : { name: formData.name.trim() }
-          ),
+      if (activeTab === 'operational_shifts') {
+        const shiftData = {
+          shift_name: formData.name.trim(),
           description: formData.description.trim(),
-          ...(activeTab === 'ranks' && {
-            code: formData.code?.trim(),
-            level: formData.level
-          }),
-          ...(activeTab === 'operational_shifts' && {
-            start_time: formData.start_time || null,
-            end_time: formData.end_time || null,
-            shift_start_date: formData.shift_start_date || null,
-            shift_duration: formData.shift_duration || null,
-            color: formData.color || '#1177BB'
-          })
-        },
-        ...(isEditing && editingId && { id: editingId })
-      };
+          start_time: formData.start_time || null,
+          end_time: formData.end_time || null,
+          shift_start_date: formData.shift_start_date || null,
+          shift_duration: formData.shift_duration || null,
+          color: formData.color || '#1177BB'
+        };
 
-      const { data, error } = await supabase.functions.invoke('dropdown-options-crud', {
-        method: isEditing ? 'PUT' : 'POST',
-        body: payload
-      });
+        if (isEditing && editingId) {
+          const { error: upErr } = await supabase
+            .from('02_admin_register_fd2_operational_shifts')
+            .update(shiftData)
+            .eq('id', editingId);
+          if (upErr) throw new Error(upErr.message || 'Failed to update Operational Shift');
+        } else {
+          const { error: insErr } = await supabase
+            .from('02_admin_register_fd2_operational_shifts')
+            .insert([{
+              ...shiftData,
+              active: true
+            }]);
+          if (insErr) throw new Error(insErr.message || 'Failed to create Operational Shift');
+        }
+      } else {
+        const payload = {
+          type: activeTab,
+          data: {
+            name: formData.name.trim(),
+            description: formData.description.trim(),
+            ...(activeTab === 'ranks' && {
+              code: formData.code?.trim(),
+              level: formData.level
+            })
+          },
+          ...(isEditing && editingId && { id: editingId })
+        };
 
-      if (error) {
-        throw new Error(error.message || `Failed to ${isEditing ? 'update' : 'create'} ${getSingularName()}`);
+        const { error } = await supabase.functions.invoke('dropdown-options-crud', {
+          method: isEditing ? 'PUT' : 'POST',
+          body: payload
+        });
+
+        if (error) {
+          throw new Error(error.message || `Failed to ${isEditing ? 'update' : 'create'} ${getSingularName()}`);
+        }
       }
 
       setSuccess(`${getSingularName()} ${isEditing ? 'updated' : 'created'} successfully!`);
@@ -638,16 +668,24 @@ export const StaffDropdownManagement: React.FC = () => {
     setSuccess('');
 
     try {
-      const { error } = await supabase.functions.invoke('dropdown-options-crud', {
-        method: 'DELETE',
-        body: {
-          type: activeTab,
-          id: id
-        }
-      });
+      if (activeTab === 'operational_shifts') {
+        const { error: delErr } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .delete()
+          .eq('id', id);
+        if (delErr) throw new Error(delErr.message || `Failed to delete ${getSingularName()}`);
+      } else {
+        const { error } = await supabase.functions.invoke('dropdown-options-crud', {
+          method: 'DELETE',
+          body: {
+            type: activeTab,
+            id: id
+          }
+        });
 
-      if (error) {
-        throw new Error(error.message || `Failed to delete ${getSingularName()}`);
+        if (error) {
+          throw new Error(error.message || `Failed to delete ${getSingularName()}`);
+        }
       }
 
       setSuccess(`${getSingularName()} "${name}" deleted successfully!`);
@@ -669,21 +707,29 @@ export const StaffDropdownManagement: React.FC = () => {
     setSuccess('');
 
     try {
-      const { error } = await supabase.functions.invoke('dropdown-options-crud', {
-        method: 'PUT',
-        body: {
-          type: activeTab,
-          id: id,
-          data: {
-            active: !currentActive,
-            // For ranks, use is_active instead of active
-            ...(activeTab === 'ranks' && { is_active: !currentActive })
+      if (activeTab === 'operational_shifts') {
+        const { error: upErr } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .update({ active: !currentActive })
+          .eq('id', id);
+        if (upErr) throw new Error(upErr.message || `Failed to ${!currentActive ? 'activate' : 'deactivate'} ${getSingularName()}`);
+      } else {
+        const { error } = await supabase.functions.invoke('dropdown-options-crud', {
+          method: 'PUT',
+          body: {
+            type: activeTab,
+            id: id,
+            data: {
+              active: !currentActive,
+              // For ranks, use is_active instead of active
+              ...(activeTab === 'ranks' && { is_active: !currentActive })
+            }
           }
-        }
-      });
+        });
 
-      if (error) {
-        throw new Error(error.message || `Failed to ${!currentActive ? 'activate' : 'deactivate'} ${getSingularName()}`);
+        if (error) {
+          throw new Error(error.message || `Failed to ${!currentActive ? 'activate' : 'deactivate'} ${getSingularName()}`);
+        }
       }
 
       setSuccess(`${getSingularName()} "${name}" ${!currentActive ? 'activated' : 'deactivated'} successfully!`);

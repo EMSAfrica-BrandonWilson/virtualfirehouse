@@ -324,6 +324,18 @@ export const StaffOptionsModal: React.FC<StaffOptionsModalProps> = ({ isOpen, ty
           if (ranksErr) throw new Error(ranksErr.message || 'Failed to load ranks');
           setItems(((ranks || []) as any) as Item[]);
         }
+      } else if (type === 'operational_shifts') {
+        const { data: shifts, error: shiftsErr } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .select('*')
+          .order('shift_name', { ascending: true });
+          
+        if (shiftsErr) throw new Error(shiftsErr.message || 'Failed to load operational shifts');
+        
+        setItems(((shifts || []) as any).map((s: any) => ({
+          ...s,
+          name: s.shift_name // Map shift_name to name for display consistency if needed, though getItemName handles it
+        })) as Item[]);
       } else {
         if (!error && data) {
           const map: Record<DropdownType, Item[]> = {
@@ -429,6 +441,32 @@ export const StaffOptionsModal: React.FC<StaffOptionsModalProps> = ({ isOpen, ty
             }]);
           if (insErr) throw new Error(insErr.message || 'Failed to create Rank');
         }
+      } else if (type === 'operational_shifts') {
+        const shiftData = {
+          shift_name: formData.name.trim(),
+          description: formData.description.trim(),
+          start_time: formData.start_time || null,
+          end_time: formData.end_time || null,
+          shift_start_date: formData.shift_start_date || null,
+          shift_duration: formData.shift_duration || null,
+          color: formData.color || '#1177BB'
+        };
+
+        if (isEditing && editingId) {
+          const { error: upErr } = await supabase
+            .from('02_admin_register_fd2_operational_shifts')
+            .update(shiftData)
+            .eq('id', editingId);
+          if (upErr) throw new Error(upErr.message || 'Failed to update Operational Shift');
+        } else {
+          const { error: insErr } = await supabase
+            .from('02_admin_register_fd2_operational_shifts')
+            .insert([{
+              ...shiftData,
+              active: true
+            }]);
+          if (insErr) throw new Error(insErr.message || 'Failed to create Operational Shift');
+        }
       } else {
         const payload = {
           type,
@@ -502,6 +540,12 @@ export const StaffOptionsModal: React.FC<StaffOptionsModalProps> = ({ isOpen, ty
           .delete()
           .eq('id', id);
         if (delErr) throw new Error(delErr.message || `Failed to delete ${getSingularName()}`);
+      } else if (type === 'operational_shifts') {
+        const { error: delErr } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .delete()
+          .eq('id', id);
+        if (delErr) throw new Error(delErr.message || `Failed to delete ${getSingularName()}`);
       } else {
         const { error } = await supabase.functions.invoke('dropdown-options-crud', {
           method: 'DELETE',
@@ -527,6 +571,12 @@ export const StaffOptionsModal: React.FC<StaffOptionsModalProps> = ({ isOpen, ty
         const { error: upErr } = await supabase
           .from('02_admin_staff_9_ranks')
           .update({ is_active: !currentActive })
+          .eq('id', id);
+        if (upErr) throw new Error(upErr.message || `Failed to ${!currentActive ? 'activate' : 'deactivate'} ${getSingularName()}`);
+      } else if (type === 'operational_shifts') {
+        const { error: upErr } = await supabase
+          .from('02_admin_register_fd2_operational_shifts')
+          .update({ active: !currentActive })
           .eq('id', id);
         if (upErr) throw new Error(upErr.message || `Failed to ${!currentActive ? 'activate' : 'deactivate'} ${getSingularName()}`);
       } else {
