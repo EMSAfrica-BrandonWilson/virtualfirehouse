@@ -587,11 +587,13 @@ export const NotamCapture: React.FC = () => {
   };
 
   const getDisplayStatus = (notam: NotamRecord): string => {
+    if (!notam.effective_to) return notam.status;
+
     const now = new Date();
     const effectiveTo = new Date(notam.effective_to);
     
     // Check if expired
-    if (notam.status === 'NOTAM is Active' && now > effectiveTo) {
+    if (notam.status.includes('Active') && now > effectiveTo) {
       return 'NOTAM has Expired';
     }
     
