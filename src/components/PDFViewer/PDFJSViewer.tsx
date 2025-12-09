@@ -358,11 +358,9 @@ export const PDFJSViewer: React.FC<PDFJSViewerProps> = ({ pdfBlob, title: propTi
       const page = await pdfDocument.getPage(pageNumber);
       
       // Set viewport scale and handle page-level rotation metadata
-      // Neutralize 180-degree rotations (which render upside down) while preserving 90/270 orientation.
       const pageRotation = (page as any).rotate || 0;
       const normalizedRotation = ((pageRotation % 360) + 360) % 360;
-      const overrideRotation = normalizedRotation === 180 ? 0 : normalizedRotation;
-      const viewport = page.getViewport({ scale: zoom, rotation: overrideRotation });
+      const viewport = page.getViewport({ scale: zoom, rotation: normalizedRotation });
       
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
@@ -419,8 +417,7 @@ export const PDFJSViewer: React.FC<PDFJSViewerProps> = ({ pdfBlob, title: propTi
       // Set viewport scale with specific zoom and handle page-level rotation metadata
       const pageRotation = (page as any).rotate || 0;
       const normalizedRotation = ((pageRotation % 360) + 360) % 360;
-      const overrideRotation = normalizedRotation === 180 ? 0 : normalizedRotation;
-      const viewport = page.getViewport({ scale: currentZoom, rotation: overrideRotation });
+      const viewport = page.getViewport({ scale: currentZoom, rotation: normalizedRotation });
       
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');

@@ -197,9 +197,9 @@ export function generateId(): string {
 }
 
 // Formats incident details as multi-line format:
-// [yyyy-mm-dd]
-// [hh:mm:ss]
-// [000,000]
+// yyyy-mm-dd
+// hh:mm:ss
+// 000,000
 // - Date/time are already stored in local timezone strings in EDOB entries
 // - Time may include fractional seconds; they are trimmed
 // - Number is zero-padded to 6 and grouped as 000,000
@@ -216,7 +216,7 @@ export function formatIncidentTag(
   const padded = String(num).padStart(6, '0');
   const grouped = `${padded.slice(0, 3)},${padded.slice(3)}`;
 
-  return `[${safeDate}]<br />[${safeTime}]<br />[${grouped}]`;
+  return `${safeDate}<br />${safeTime}<br />${grouped}`;
 }
 
 // Build a consistently formatted incident tag from an entry object with fallbacks.

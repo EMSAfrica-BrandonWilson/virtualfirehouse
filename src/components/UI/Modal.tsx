@@ -20,7 +20,7 @@ const ModalOverlay = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 10000;
 `;
 
 const ModalContent = styled.div<{ $type?: string }>`

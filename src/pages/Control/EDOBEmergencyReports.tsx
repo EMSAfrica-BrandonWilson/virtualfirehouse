@@ -537,7 +537,7 @@ export const EDOBEmergencyReports: React.FC = () => {
   const [entries, setEntries] = useState<EDOBEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<EDOBEntry[]>([]);
   const [incidentTypes, setIncidentTypes] = useState<IncidentType[]>([]);
-  const [incidentTypeMap, setIncidentTypeMap] = useState<Record<string, { display: string; primary: string }>>({});
+  const [incidentTypeMap, setIncidentTypeMap] = useState<Record<string, { display: string; primary: string; color: string }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -576,7 +576,8 @@ export const EDOBEmergencyReports: React.FC = () => {
   }, [filteredEntries]);
   
   // Load incident types from database
-  const canonicalKey = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Improved normalization to handle various formats (underscores, spaces, casing)
+  const canonicalKey = (s: string) => String(s || '').toLowerCase().trim().replace(/[\s_-]+/g, '');
 
   const loadIncidentTypes = async () => {
     try {
@@ -588,18 +589,39 @@ export const EDOBEmergencyReports: React.FC = () => {
       
       if (error) throw error;
       const rows = data || [];
+      
       setIncidentTypes(rows as any);
-      const map: Record<string, { display: string; primary: string }> = {};
+      const map: Record<string, { display: string; primary: string; color: string }> = {};
+      
       rows.forEach((t: any) => {
-        const nameKey = canonicalKey(String(t?.name || ''));
-        const displayKey = canonicalKey(String(t?.display_name || ''));
-        const idKey = t?.id !== undefined && t?.id !== null ? canonicalKey(String(t.id)) : '';
-        const displayVal = String(t?.display_name || t?.name || '');
+        const rawName = String(t?.name || '');
+        const rawDisplay = String(t?.display_name || '');
+        const rawId = String(t?.id || '');
+        
+        const displayVal = rawDisplay || rawName;
         const primaryVal = String(t?.incident_types || '');
-        if (nameKey) map[nameKey] = { display: displayVal, primary: primaryVal };
-        if (displayKey && !map[displayKey]) map[displayKey] = { display: displayVal, primary: primaryVal };
-        if (idKey && !map[idKey]) map[idKey] = { display: displayVal, primary: primaryVal };
+        const colorVal = String(t?.color_code || '#6c757d'); // Default color if missing
+        
+        const entry = { display: displayVal, primary: primaryVal, color: colorVal };
+        
+        // Map multiple variations to ensure we catch it
+        if (rawName) {
+           map[rawName] = entry; // exact name
+           map[rawName.toLowerCase()] = entry; // lower name
+           map[canonicalKey(rawName)] = entry; // canonical name
+        }
+        
+        if (rawDisplay) {
+           map[rawDisplay] = entry; // exact display
+           map[rawDisplay.toLowerCase()] = entry; // lower display
+           map[canonicalKey(rawDisplay)] = entry; // canonical display
+        }
+        
+        if (rawId) {
+           map[rawId] = entry;
+        }
       });
+      
       setIncidentTypeMap(map);
     } catch (err) {
       console.error('Failed to load incident types:', err);
@@ -1092,7 +1114,38 @@ export const EDOBEmergencyReports: React.FC = () => {
         ]],
         body: tableData,
         startY: vfhSetup.tableStartY,
-        ...vfhSetup.tableConfig
+        ...vfhSetup.tableConfig,
+        willDrawCell: (data) => {
+          // Add color badge to Incident Type column (index 1)
+          if (data.section === 'body' && data.column.index === 1) {
+            const entry = entriesToPrint[data.row.index];
+            if (entry) {
+              const rawType = entry.incident_type || '';
+              const typeInfo = 
+                incidentTypeMap[rawType] || 
+                incidentTypeMap[rawType.toLowerCase()] || 
+                incidentTypeMap[canonicalKey(rawType)];
+              const badgeColor = typeInfo?.color || '#6c757d';
+              
+              // Set text color to white
+              data.cell.styles.textColor = [255, 255, 255];
+              data.cell.styles.fontStyle = 'bold';
+              
+              // Draw badge background
+              doc.setFillColor(badgeColor);
+              
+              // Calculate badge dimensions (with padding)
+              const paddingX = 2;
+              const paddingY = 2;
+              const x = data.cell.x + paddingX;
+              const y = data.cell.y + paddingY;
+              const w = data.cell.width - (paddingX * 2);
+              const h = data.cell.height - (paddingY * 2);
+              
+              doc.roundedRect(x, y, w, h, 3, 3, 'F');
+            }
+          }
+        }
       });
       
       console.log('autoTable completed');
@@ -1414,11 +1467,21 @@ export const EDOBEmergencyReports: React.FC = () => {
                               </TableCell>
                               <TableCell $isEmergency={isEmergency}>
                                 {(() => {
-                                  const typeObj = incidentTypes.find(t => t.name === entry.incident_type || t.display_name === entry.incident_type);
-                                  const badgeColor = typeObj?.color_code || undefined;
+                                  // Look up display name and color from database table based on the stored incident type
+                                  const rawType = entry.incident_type || '';
+                                  
+                                  // Try multiple lookup strategies
+                                  const typeInfo = 
+                                    incidentTypeMap[rawType] || 
+                                    incidentTypeMap[rawType.toLowerCase()] || 
+                                    incidentTypeMap[canonicalKey(rawType)];
+                                  
+                                  const displayName = typeInfo?.display || rawType || 'N/A';
+                                  const badgeColor = typeInfo?.color || undefined;
+                                  
                                   return (
-                                    <IncidentBadge type={entry.incident_type} color={badgeColor}>
-                                      {incidentTypeMap[canonicalKey(entry.incident_type || '')]?.display || entry.incident_type}
+                                    <IncidentBadge type={rawType} color={badgeColor}>
+                                      {displayName}
                                     </IncidentBadge>
                                   );
                                 })()}

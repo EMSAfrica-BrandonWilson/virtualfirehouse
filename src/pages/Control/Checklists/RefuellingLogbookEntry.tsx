@@ -4,6 +4,7 @@ import { supabase, isSupabaseFallback } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import RefuellingLogbookHeader from '../../../components/RefuellingLogbookHeader';
+import { Modal } from '../../../components/UI/Modal';
 
 const MainContent = styled.main`
   margin: 10px;
@@ -77,23 +78,11 @@ const ImagePlaceholder = styled.div`
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 `;
 
-const InfoBox = styled.div`
-  background: #fff3cd;
-  border: 1px solid #ffc107;
-  border-radius: 8px;
-  padding: 15px;
-  margin-bottom: 20px;
-  
-  strong {
-    color: #856404;
-  }
-`;
-
 const SubTitle = styled.h2`
   font-size: 1.5rem;
   color: #1177BB;
   font-weight: bold;
-  margin-bottom: 15px;
+  margin: 0;
 `;
 
 const Divider = styled.hr`
@@ -103,6 +92,15 @@ const Divider = styled.hr`
   margin: 15px 0;
 `;
 
+const FormHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+`;
+
 const FormCard = styled.div`
   background: #fafafa;
   border: 1px solid #e0e0e0;
@@ -110,6 +108,9 @@ const FormCard = styled.div`
   padding: 25px;
   margin-bottom: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
 `;
 
 const FormGrid = styled.div`
@@ -209,7 +210,7 @@ const SubmitButton = styled.button`
   font-weight: bold;
   transition: all 0.3s ease;
   width: fit-content;
-  margin-top: 10px;
+  margin: 0;
   
   &:hover:not(:disabled) {
     background-color: #218838;
@@ -226,8 +227,27 @@ const SubmitButton = styled.button`
 const ButtonGroup = styled.div`
   display: flex;
   gap: 10px;
-  margin-top: 10px;
+  margin: 0;
   flex-wrap: wrap;
+`;
+
+const AddButton = styled.button`
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  margin: 0;
+  
+  &:hover:not(:disabled) {
+    background-color: #138496;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  }
 `;
 
 const UpdateButton = styled.button`
@@ -323,8 +343,6 @@ interface RefuellingFormData {
   pump_end_reading: string;
   operator_name: string;
   spills_incidents: string;
-  tank_fill_percentage: string;
-  authorization_code: string;
 }
 
 interface CallSign {
@@ -370,6 +388,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
   const editId = searchParams.get('edit');
   
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isFormActive, setIsFormActive] = useState(false);
   const [currentLogId, setCurrentLogId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<RefuellingFormData>({
@@ -382,19 +401,24 @@ export const RefuellingLogbookEntry: React.FC = () => {
     pump_start_reading: '',
     pump_end_reading: '',
     operator_name: '',
-    spills_incidents: '',
-    tank_fill_percentage: '',
-    authorization_code: ''
+    spills_incidents: ''
   });
   
   const [callSigns, setCallSigns] = useState<CallSign[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+  // Store the full vehicle data mapped by call sign for quick lookup
+  const [vehicleDataMap, setVehicleDataMap] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dropdownsLoading, setDropdownsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+  
+  // Modal state
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+  const [modalErrorTitle, setModalErrorTitle] = useState('');
+  const [modalErrorMessage, setModalErrorMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -403,6 +427,9 @@ export const RefuellingLogbookEntry: React.FC = () => {
   useEffect(() => {
     if (editId) {
       loadRecordForEdit(editId);
+      setIsFormActive(true);
+    } else {
+      setIsFormActive(false);
     }
   }, [editId]);
 
@@ -453,9 +480,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
           pump_start_reading: data.pump_start_reading?.toString() || '',
           pump_end_reading: data.pump_end_reading?.toString() || '',
           operator_name: data.operator_name || '',
-          spills_incidents: data.spills_incidents || '',
-          tank_fill_percentage: data.tank_fill_percentage?.toString() || '',
-          authorization_code: data.authorization_code || ''
+          spills_incidents: data.spills_incidents || ''
         });
       }
     } catch (error: any) {
@@ -495,7 +520,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
       if (isSupabaseFallback) {
         throw new Error('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
       }
-      const [callSignResponse, staffResponse] = await Promise.all([
+      const [callSignResponse, staffResponse, vehiclesResponse] = await Promise.all([
         supabase
           .from('02_admin_register_fd5_vehicle_call_signs')
           .select('*')
@@ -503,11 +528,15 @@ export const RefuellingLogbookEntry: React.FC = () => {
         supabase
           .from('02_admin_staff_1_registration')
           .select('staff_id, first_name, middle_name, last_name')
-          .order('first_name', { ascending: true })
+          .order('first_name', { ascending: true }),
+        supabase
+          .from('02_admin_register_fd4_vehicles')
+          .select('vehicle_callsign, vehicle_type, vehicle_model')
       ]);
 
       if ((callSignResponse as any).error) throw (callSignResponse as any).error;
       if ((staffResponse as any).error) throw (staffResponse as any).error;
+      if ((vehiclesResponse as any).error) throw (vehiclesResponse as any).error;
 
       const callSignRows = (callSignResponse as any).data || [];
       const parsedCallSigns: CallSign[] = callSignRows
@@ -519,6 +548,19 @@ export const RefuellingLogbookEntry: React.FC = () => {
         .filter((cs: CallSign) => !!cs.name);
       setCallSigns(parsedCallSigns);
       
+      // Process vehicle data to map call signs to type+model
+      const vehicleRows = (vehiclesResponse as any).data || [];
+      const vMap: Record<string, string> = {};
+      vehicleRows.forEach((row: any) => {
+        if (row.vehicle_callsign) {
+          const type = row.vehicle_type || '';
+          const model = row.vehicle_model || '';
+          // Combine type and model
+          const displayValue = [type, model].filter(Boolean).join(' - ');
+          vMap[row.vehicle_callsign] = displayValue;
+        }
+      });
+      setVehicleDataMap(vMap);
       setVehicles([]);
       
       const staffRows = (staffResponse as any).data || [];
@@ -541,10 +583,13 @@ export const RefuellingLogbookEntry: React.FC = () => {
     const { name, value } = e.target;
     
     if (name === 'vehicle_call_sign') {
+      // When call sign changes, auto-populate the vehicle type/model
+      const vehicleTypeInfo = vehicleDataMap[value] || '';
+      
       setFormData(prev => ({ 
         ...prev, 
         [name]: value,
-        vehicle_id: value
+        vehicle_id: vehicleTypeInfo // Set the mapped type+model here
       }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
@@ -614,8 +659,6 @@ export const RefuellingLogbookEntry: React.FC = () => {
         pump_end_reading: formData.pump_end_reading ? parseFloat(formData.pump_end_reading) : null,
         operator_name: formData.operator_name,
         spills_incidents: formData.spills_incidents || null,
-        tank_fill_percentage: formData.tank_fill_percentage ? parseInt(formData.tank_fill_percentage) : null,
-        authorization_code: formData.authorization_code || null,
         created_by: user.id
       };
       
@@ -664,9 +707,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
             pump_start_reading: '',
             pump_end_reading: '',
             operator_name: '',
-            spills_incidents: '',
-            tank_fill_percentage: '',
-            authorization_code: ''
+            spills_incidents: ''
           });
         }, 1000);
         
@@ -675,7 +716,21 @@ export const RefuellingLogbookEntry: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to save refuelling log:', error);
       const errorMsg = error?.message || 'Failed to save refuelling log. Please try again.';
-      setErrorMessage(`Error: ${errorMsg}`);
+      
+      // Handle specific numeric field overflow error
+      // Postgres error code 22003 is numeric_value_out_of_range
+      const isOverflow = 
+        error?.code === '22003' || 
+        errorMsg.toLowerCase().includes('numeric field overflow') ||
+        errorMsg.toLowerCase().includes('out of range');
+
+      if (isOverflow) {
+        setModalErrorTitle('Value Too Large');
+        setModalErrorMessage('One or more numeric values entered are too large for the database field. Please check Quantity, Pump Readings, and Odometer Reading. Ensure you are not entering values that exceed the allowed precision (e.g., too many digits).');
+        setIsErrorModalOpen(true);
+      } else {
+        setErrorMessage(`Error: ${errorMsg}`);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -725,6 +780,27 @@ export const RefuellingLogbookEntry: React.FC = () => {
   const handleCancel = () => {
     navigate('/control/ecc-checklists/refuelling-log-book/records');
   };
+
+  const handleAddEntry = () => {
+    setIsFormActive(true);
+  };
+
+  const handleClearForm = () => {
+    setFormData({
+      vehicle_call_sign: '',
+      refuelling_date: getLocalDateTimeString(),
+      vehicle_id: '',
+      odometer_reading: '',
+      fuel_type: 'Diesel',
+      quantity_litres: '',
+      pump_start_reading: '',
+      pump_end_reading: '',
+      operator_name: '',
+      spills_incidents: ''
+    });
+    setValidationErrors({});
+    setIsFormActive(false);
+  };
   
   return (
     <MainContent aria-label="Main content">
@@ -747,17 +823,73 @@ export const RefuellingLogbookEntry: React.FC = () => {
             
           </FlexRow>
           
-          {!isEditMode && (
-            <InfoBox>
-              <strong>Important:</strong> Refuelling operations must be documented upon completion. Ensure accurate recording of vehicle identification, fuel quantity, odometer readings, and operator information for accountability and regulatory compliance.
-            </InfoBox>
-          )}
+          <Modal
+            isOpen={isErrorModalOpen}
+            onClose={() => setIsErrorModalOpen(false)}
+            title={modalErrorTitle}
+            type="error"
+          >
+            {modalErrorMessage}
+          </Modal>
+
           {successMessage && <SuccessMessage>{successMessage}</SuccessMessage>}
           {errorMessage && <ErrorMessage>{errorMessage}</ErrorMessage>}
           
           <FormCard>
-            <SubTitle>{isEditMode ? 'Edit Refuelling Log Entry' : 'Refuelling Log Entry Form'}</SubTitle>
-            <form onSubmit={handleSubmit}>
+            <FormHeader>
+              <SubTitle>{isEditMode ? 'Edit Refuelling Log Entry' : 'Refuelling Log Entry Form'}</SubTitle>
+              
+              {!isEditMode && !isFormActive && (
+                <AddButton onClick={handleAddEntry}>Add Entry</AddButton>
+              )}
+
+              {isEditMode ? (
+                <ButtonGroup>
+                  <UpdateButton 
+                    form="refuelling-form"
+                    type="submit" 
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Updating...' : 'Update Entry'}
+                  </UpdateButton>
+                  <DeleteButton 
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isSubmitting}
+                  >
+                    Delete Entry
+                  </DeleteButton>
+                  <CancelButton 
+                    type="button"
+                    onClick={handleCancel}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </CancelButton>
+                </ButtonGroup>
+              ) : (
+                isFormActive && (
+                  <ButtonGroup>
+                    <SubmitButton 
+                      form="refuelling-form"
+                      type="submit" 
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save Entry'}
+                    </SubmitButton>
+                    <CancelButton
+                      type="button"
+                      onClick={handleClearForm}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </CancelButton>
+                  </ButtonGroup>
+                )
+              )}
+            </FormHeader>
+
+            <form id="refuelling-form" onSubmit={handleSubmit}>
               <FormGrid>
                 <FormGroup>
                   <FormLabel htmlFor="vehicle_call_sign">
@@ -769,6 +901,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
                     value={formData.vehicle_call_sign}
                     onChange={handleChange}
                     $hasError={!!validationErrors.vehicle_call_sign}
+                    disabled={!isFormActive}
                     required
                   >
                     <option value="">Select Call Sign</option>
@@ -784,7 +917,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
                 </FormGroup>
                 
                 <FormGroup>
-                  <FormLabel htmlFor="vehicle_id">Vehicle/Appliance ID *</FormLabel>
+                  <FormLabel htmlFor="vehicle_id">Vehicle Type *</FormLabel>
                   <FormInput
                     type="text"
                     id="vehicle_id"
@@ -819,6 +952,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
                     name="operator_name"
                     value={formData.operator_name}
                     onChange={handleChange}
+                    disabled={!isFormActive}
                     required
                   >
                     <option value="">Select Operator</option>
@@ -840,6 +974,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
                     value={formData.odometer_reading}
                     onChange={handleChange}
                     placeholder="Current reading"
+                    disabled={!isFormActive}
                   />
                 </FormGroup>
                 
@@ -850,6 +985,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
                     name="fuel_type"
                     value={formData.fuel_type}
                     onChange={handleChange}
+                    disabled={!isFormActive}
                     required
                   >
                     <option value="Diesel">Diesel</option>
@@ -871,6 +1007,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
                     value={formData.pump_start_reading}
                     onChange={handleChange}
                     placeholder="Starting metre"
+                    disabled={!isFormActive}
                   />
                 </FormGroup>
                 
@@ -884,6 +1021,7 @@ export const RefuellingLogbookEntry: React.FC = () => {
                     value={formData.pump_end_reading}
                     onChange={handleChange}
                     placeholder="Ending metre"
+                    disabled={!isFormActive}
                   />
                 </FormGroup>
                 
@@ -897,39 +1035,10 @@ export const RefuellingLogbookEntry: React.FC = () => {
                     value={formData.quantity_litres}
                     onChange={handleChange}
                     placeholder="Fuel dispensed"
+                    disabled={!isFormActive}
                     required
                   />
                 </FormGroup>
-              </FormGrid>
-              
-              <FormGrid>
-                <FormGroup>
-                  <FormLabel htmlFor="tank_fill_percentage">Tank Fill Percentage</FormLabel>
-                  <FormInput
-                    type="number"
-                    min="0"
-                    max="100"
-                    id="tank_fill_percentage"
-                    name="tank_fill_percentage"
-                    value={formData.tank_fill_percentage}
-                    onChange={handleChange}
-                    placeholder="0-100%"
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <FormLabel htmlFor="authorization_code">Authorization Code</FormLabel>
-                  <FormInput
-                    type="text"
-                    id="authorization_code"
-                    name="authorization_code"
-                    value={formData.authorization_code}
-                    onChange={handleChange}
-                    placeholder="Approval reference"
-                  />
-                </FormGroup>
-                
-                <div></div>
               </FormGrid>
               
               <FormGroup>
@@ -940,40 +1049,9 @@ export const RefuellingLogbookEntry: React.FC = () => {
                   value={formData.spills_incidents}
                   onChange={handleChange}
                   placeholder="Record any spills, incidents, or notes..."
+                  disabled={!isFormActive}
                 />
               </FormGroup>
-              
-              {isEditMode ? (
-                <ButtonGroup>
-                  <UpdateButton 
-                    type="submit" 
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? 'Updating...' : 'Update Entry'}
-                  </UpdateButton>
-                  <DeleteButton 
-                    type="button"
-                    onClick={handleDelete}
-                    disabled={isSubmitting}
-                  >
-                    Delete Entry
-                  </DeleteButton>
-                  <CancelButton 
-                    type="button"
-                    onClick={handleCancel}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </CancelButton>
-                </ButtonGroup>
-              ) : (
-                <SubmitButton 
-                  type="submit" 
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Entry'}
-                </SubmitButton>
-              )}
             </form>
           </FormCard>
         </div>

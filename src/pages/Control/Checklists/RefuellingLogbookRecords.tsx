@@ -239,8 +239,6 @@ interface RefuellingLog {
   pump_end_reading: string | null;
   operator_name: string;
   spills_incidents: string | null;
-  tank_fill_percentage: string | null;
-  authorization_code: string | null;
   created_at: string;
   created_by: string;
 }
@@ -427,7 +425,6 @@ export const RefuellingLogbookRecords: React.FC = () => {
                   <TableHeaderCell>Odometer</TableHeaderCell>
                   <TableHeaderCell>Fuel Type</TableHeaderCell>
                   <TableHeaderCell>Qty (L)</TableHeaderCell>
-                  <TableHeaderCell>Tank Fill %</TableHeaderCell>
                   <TableHeaderCell>Action</TableHeaderCell>
                 </tr>
               </TableHeader>
@@ -440,7 +437,6 @@ export const RefuellingLogbookRecords: React.FC = () => {
                     <TableCell>{log.odometer_reading || 'N/A'}</TableCell>
                     <TableCell>{log.fuel_type}</TableCell>
                     <TableCell>{log.quantity_litres}</TableCell>
-                    <TableCell>{log.tank_fill_percentage || 'N/A'}</TableCell>
                     <TableCell>
                       <ActionButton $variant="primary" onClick={() => handleEdit(log.id)}>
                         Edit
