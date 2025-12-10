@@ -46,6 +46,8 @@ import { VehiclesInService } from './pages/Control/VehiclesInService';
 import VehiclesOutOfService from './pages/Control/VehiclesOutOfService';
 import { EmergencyIncidentLogging } from './pages/Control/EmergencyIncidentLogging';
 import { IncidentCallTaking } from './pages/Control/IncidentCallTaking';
+import { IncidentCallDispatching } from './pages/Control/IncidentCallDispatching';
+import { RespondingResources } from './pages/Control/RespondingResources';
 const EmergencyIncidentReports = lazy(() => import('./pages/Control/EmergencyIncidentReports').then(m => ({ default: m.EmergencyIncidentReports })));
 import { ECCChecklists } from './pages/Control/ECCChecklists';
 import { ApplianceBayDoors } from './pages/Control/Checklists/ApplianceBayDoors';
@@ -879,6 +881,22 @@ function App() {
                 <MainMaster>
                   <ProtectedRoute>
                     <IncidentCallTaking />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              
+              <Route path="/control/emergency-incident-logging/dispatching" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentCallDispatching />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              
+              <Route path="/control/emergency-incident-logging/resources" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <RespondingResources />
                   </ProtectedRoute>
                 </MainMaster>
               } />

@@ -1445,7 +1445,7 @@ export const EDOBEmergencyReports: React.FC = () => {
                                   }}
                                 />
                               </TableCell>
-                              <TableCell $isEmergency={isEmergency} style={{ whiteSpace: 'nowrap', fontFamily: 'Courier New, monospace', fontWeight: 'normal' }}>
+                              <TableCell $isEmergency={isEmergency} style={{ whiteSpace: 'nowrap', fontFamily: 'Courier New, monospace', fontWeight: 'bold', color: '#dc3545' }}>
                                 {(() => {
                                   const dateStr = (fallbackDate || '').trim();
                                   const timeRaw = (fallbackTime || '').trim();
