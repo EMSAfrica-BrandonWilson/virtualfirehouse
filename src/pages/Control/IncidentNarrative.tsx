@@ -9,6 +9,7 @@ const MainContent = styled.main`
   font-family: 'Segoe UI Variable Display', 'Poppins', Arial, sans-serif;
   font-size: 112.5%;
   overflow-x: hidden;
+  contain: layout paint;
 `;
 
 const Section = styled.section`
@@ -36,7 +37,7 @@ const ImageColumn = styled.div`
   justify-content: center;
   align-items: flex-start;
   @media (max-width: 768px) {
-    width: 100% !important;
+    width: 95% !important;
     justify-content: center;
     margin-top: 20px;
   }
@@ -85,7 +86,7 @@ const ImagePlaceholder = styled.div`
 `;
 
 const Input = styled.input`
-  width: 100%;
+  width: 95%;
   padding: 8px;
   border: 1px solid #ccc;
   border-radius: 3px;
@@ -103,12 +104,15 @@ const Label = styled.label`
 
 const TextArea = styled.textarea`
   width: 100%;
-  padding: 8px;
+  padding: 8px 32px 8px 8px;
   border: 1px solid #ccc;
   border-radius: 3px;
   font-size: 13px;
   resize: vertical;
   min-height: 100px;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
   &:focus { border-color: #1177BB; outline: none; }
 `;
 
@@ -285,7 +289,7 @@ export const IncidentNarrative: React.FC = () => {
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                   {messages.map((m, idx) => (
-                    <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', borderBottom: '1px solid #eee' }}>
+                    <li key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '12px', padding: '8px 8px 8px 0', borderBottom: '1px solid #eee' }}>
                       <ActionButton onClick={() => removeMessage(idx)}>Remove</ActionButton>
                       <span><strong>{m.oic}</strong> — {m.text} <em style={{ color: '#666' }}>at {m.time}</em></span>
                     </li>

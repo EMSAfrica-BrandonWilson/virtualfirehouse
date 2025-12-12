@@ -111,10 +111,10 @@ const Select = styled.select`
 `;
 
 const TextArea = styled.textarea`
-  width: 288px;
-  min-width: 288px;
-  max-width: 288px;
-  padding: 8px;
+  width: 332px;
+  min-width: 332px;
+  max-width: 332px;
+  padding: 8px 32px 8px 8px;
   border: 1px solid #ccc;
   border-radius: 3px;
   font-size: 13px;
@@ -133,7 +133,7 @@ const FormGroup = styled.div`
 
 const InlineRow = styled.div`
   display: grid;
-  grid-template-columns: 120px 120px 120px 288px;
+  grid-template-columns: 120px 120px 120px 332px 130px;
   column-gap: 10px;
   align-items: end;
   width: 100%;
@@ -145,9 +145,9 @@ const SmallGroup = styled(FormGroup)`
 `;
 
 const DescriptionGroup = styled(FormGroup)`
-  width: 288px;
-  min-width: 288px;
-  max-width: 288px;
+  width: 332px;
+  min-width: 332px;
+  max-width: 332px;
 `;
 
 const ButtonRow = styled.div`
@@ -295,11 +295,13 @@ export const IncidentCasualtiesAndFatalities: React.FC = () => {
                 <Label htmlFor="description">Description</Label>
                 <TextArea id="description" name="description" value={entry.description} onChange={onEntryChange} placeholder="Enter details" />
               </DescriptionGroup>
+              <FormGroup>
+                <Label>&nbsp;</Label>
+                <ButtonFixed type="button" onClick={addRecord}>Add</ButtonFixed>
+              </FormGroup>
             </InlineRow>
           </div>
-          <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-start' }}>
-            <ButtonFixed type="button" onClick={addRecord}>Add</ButtonFixed>
-          </div>
+
           <div style={{ marginTop: '12px' }}>
             <Section>
               {records.length === 0 ? (
@@ -338,8 +340,11 @@ const ButtonFixed = styled(ActionButton)`
 
 const RecordsList = styled.ul`
   list-style: none;
-  padding: 0;
+  padding: 0 8px;
   margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 `;
 
 const RecordItem = styled.li`
@@ -349,8 +354,10 @@ const RecordItem = styled.li`
   align-items: start;
   padding: 8px 8px 8px 0;
   border-bottom: 1px solid #eee;
+  width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 `;
 
 const RecordMeta = styled.span`

@@ -201,7 +201,7 @@ export const IncidentCallDispatching: React.FC = () => {
   const [isActive, setIsActive] = useState(false);
   const [dispatcherOptions, setDispatcherOptions] = useState<{ staff_id: string; full_name: string }[]>([]);
   const [stationOptions, setStationOptions] = useState<{ id: string; name: string }[]>([]);
-  const [vehicleOptions, setVehicleOptions] = useState<{ value: string; label: string }[]>([]);
+  const [vehicleOptions, setVehicleOptions] = useState<{ value: string; label: string; stationName: string }[]>([]);
   const focusRef = useRef<HTMLInputElement | null>(null);
   const [dispatched, setDispatched] = useState<Array<{ id: string; name: string; time: string }>>([]);
 
@@ -216,6 +216,7 @@ export const IncidentCallDispatching: React.FC = () => {
       incidentNumber: '',
       assignedStation: '',
       assignedVehicle: '',
+      selectedVehicleCallSign: '',
       primaryResource: '',
       secondaryResource: '',
       assignedStation2: '',
@@ -255,6 +256,17 @@ export const IncidentCallDispatching: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!form.dispatcher) {
+      const override = localStorage.getItem('vfh_dispatcher_user_override');
+      const callTaker = localStorage.getItem('vfh_call_taker_id') || '';
+      if (override !== '1' && callTaker) {
+        setForm(prev => ({ ...prev, dispatcher: callTaker }));
+        try { localStorage.setItem('vfh_dispatcher_id', callTaker); } catch {}
+      }
+    }
+  }, [form.dispatcher]);
+
+  useEffect(() => {
     const loadStations = async () => {
       let defaultDeptId: number | null = null;
       const { data: deptData } = await supabase
@@ -286,7 +298,7 @@ export const IncidentCallDispatching: React.FC = () => {
         const today = new Date().toISOString().split('T')[0];
         const { data } = await supabase
           .from('03_ecc_02_duty_roster_01_station_assignments')
-          .select('call_sign, vehicle_type, status')
+          .select('call_sign, vehicle_type, status, station_assignment')
           .eq('assignment_date', today)
           .eq('status', 'In Service')
           .order('call_sign', { ascending: true });
@@ -297,7 +309,8 @@ export const IncidentCallDispatching: React.FC = () => {
         });
         setVehicleOptions(deduped.map((r: any) => ({
           value: String(r.call_sign || ''),
-          label: `${r.call_sign || ''} ${r.vehicle_type || ''}`.trim()
+          label: `${r.call_sign || ''} ${r.vehicle_type || ''}`.trim(),
+          stationName: String(r.station_assignment || '')
         })));
       } catch {
         setVehicleOptions([]);
@@ -342,13 +355,13 @@ export const IncidentCallDispatching: React.FC = () => {
   };
 
   const addDispatch = () => {
-    if (!form.assignedStation || !form.assignedVehicle) return;
+    if (!form.assignedStation || !form.assignedVehicle || !form.selectedVehicleCallSign) return;
     const exists = dispatched.some(d => d.id === form.assignedStation);
     if (exists) return;
     const station = stationOptions.find(s => s.id === form.assignedStation);
     const name = station?.name || form.assignedStation;
-    setDispatched(prev => [...prev, { id: form.assignedStation, name, time: form.assignedVehicle }]);
-    setForm(prev => ({ ...prev, assignedStation: '', assignedVehicle: '' }));
+    setDispatched(prev => [...prev, { id: form.assignedStation, name, time: form.assignedVehicle, vehicle: form.selectedVehicleCallSign }]);
+    setForm(prev => ({ ...prev, assignedStation: '', assignedVehicle: '', selectedVehicleCallSign: '' }));
   };
 
   const removeDispatch = (id: string) => {
@@ -357,6 +370,31 @@ export const IncidentCallDispatching: React.FC = () => {
 
   const storageKey = (inc: string) => `vfh_dispatched_stations:${inc}`;
   const storageFormKey = (inc: string) => `vfh_dispatching_form:${inc}`;
+
+  const reloadDispatchedFromDB = async (inc: string) => {
+    const { data } = await supabase
+      .from('03_ecc_03_02_Incident_Call_Dispatching')
+      .select('dispatch_date, dispatch_time, dispatcher_id, dispatched_stations')
+      .eq('incident_number', inc)
+      .limit(1);
+    const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+    if (row) {
+      const listRaw = Array.isArray(row.dispatched_stations) ? row.dispatched_stations : [];
+      const list = listRaw.map((x: any) => ({
+        id: String((x.station_id ?? x.id ?? '')),
+        name: String((x.station_name ?? x.name ?? x.fire_station_name ?? '')),
+        time: String((x.dispatched_time ?? x.time ?? x.dispatchedTime ?? '')),
+        vehicle: String((x.vehicle_call_sign ?? x.call_sign ?? x.vehicle ?? ''))
+      })).filter(d => d.id);
+      setDispatched(list);
+      setForm(prev => ({
+        ...prev,
+        dispatchDate: String(row.dispatch_date || prev.dispatchDate || ''),
+        dispatchTime: String(row.dispatch_time || prev.dispatchTime || ''),
+        dispatcher: String(row.dispatcher_id || prev.dispatcher || '')
+      }));
+    }
+  };
 
   useEffect(() => {
     const carried = localStorage.getItem('vfh_current_incident_number');
@@ -378,26 +416,7 @@ export const IncidentCallDispatching: React.FC = () => {
           }
         }
       } catch {}
-      if (dispatched.length === 0) {
-        (async () => {
-          const { data } = await supabase
-            .from('03_ecc_03_02_Incident_Call_Dispatching')
-            .select('dispatch_date, dispatch_time, dispatcher_id, dispatched_stations')
-            .eq('incident_number', inc)
-            .limit(1);
-          const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
-          if (row) {
-            const list = Array.isArray(row.dispatched_stations) ? row.dispatched_stations : [];
-            setDispatched(list.map((x: any) => ({ id: String(x.station_id || ''), name: String(x.station_name || ''), time: String(x.dispatched_time || '') })).filter(d => d.id));
-            setForm(prev => ({
-              ...prev,
-              dispatchDate: String(row.dispatch_date || prev.dispatchDate || ''),
-              dispatchTime: String(row.dispatch_time || prev.dispatchTime || ''),
-              dispatcher: String(row.dispatcher_id || prev.dispatcher || '')
-            }));
-          }
-        })();
-      }
+      reloadDispatchedFromDB(inc);
     }
   }, [form.incidentNumber]);
 
@@ -500,8 +519,8 @@ export const IncidentCallDispatching: React.FC = () => {
   };
 
   const onDispatch = async () => {
-    const dispatchedStations = dispatched.map(d => ({ station_id: d.id, station_name: d.name, dispatched_time: d.time }));
-    const payload: any = {
+    const dispatchedStations = dispatched.map(d => ({ station_id: d.id, station_name: d.name, dispatched_time: d.time, vehicle_call_sign: (d as any).vehicle || null }));
+    const directPayload: any = {
       incident_number: form.incidentNumber,
       dispatch_date: form.dispatchDate,
       dispatch_time: form.dispatchTime,
@@ -509,12 +528,15 @@ export const IncidentCallDispatching: React.FC = () => {
       dispatched_stations: dispatchedStations
     };
     try {
-      const { error } = await supabase
-        .from('03_ecc_03_02_Incident_Call_Dispatching')
-        .upsert([payload], { onConflict: 'incident_number' });
+      const { error } = await supabase.functions.invoke('call-dispatching-crud', { body: { action: 'upsert', ...directPayload } });
       if (error) {
-        alert(`Failed to save dispatching: ${error.message}`);
-        return;
+        const { error: upsertError } = await supabase
+          .from('03_ecc_03_02_Incident_Call_Dispatching')
+          .upsert([directPayload], { onConflict: 'incident_number' });
+        if (upsertError) {
+          alert(`Failed to save dispatching: ${upsertError.message}`);
+          return;
+        }
       }
       const inc = form.incidentNumber || '';
       if (inc) {
@@ -529,6 +551,7 @@ export const IncidentCallDispatching: React.FC = () => {
           };
           localStorage.setItem(storageFormKey(inc), JSON.stringify(snapshot));
         } catch {}
+        await reloadDispatchedFromDB(inc);
       }
       alert('Dispatching saved');
       navigate('/control/emergency-incident-logging/resources');
@@ -562,18 +585,8 @@ export const IncidentCallDispatching: React.FC = () => {
               )}
             </ImageColumn>
           </FlexRow>
-          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px' }}>
-            <div style={{ flex: '0 0 320px' }}>
-              <InlineField>
-                <Select id="dispatcher" name="dispatcher" value={form.dispatcher} onChange={handleChange} required disabled={!isActive} style={{ flex: 1 }}>
-                  <option value="">Select Dispatcher...</option>
-                  {dispatcherOptions.map(opt => (
-                    <option key={opt.staff_id} value={opt.staff_id}>{opt.full_name}</option>
-                  ))}
-                </Select>
-                <Label htmlFor="dispatcher" className="required" style={{ marginBottom: 0 }}>Dispatcher</Label>
-              </InlineField>
-            </div>
+          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px' }}>
+            <PrimaryButton onClick={onInitiate}>Initiate Dispatch</PrimaryButton>
             <Input
               type="text"
               id="incidentNumber"
@@ -585,9 +598,6 @@ export const IncidentCallDispatching: React.FC = () => {
               style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }}
               readOnly
             />
-          </div>
-          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'flex-end', gap: '16px', justifyContent: 'flex-start' }}>
-            <PrimaryButton onClick={onInitiate}>Initiate Dispatch</PrimaryButton>
           </div>
 
           <div style={{ marginTop: '12px' }}>
@@ -603,6 +613,23 @@ export const IncidentCallDispatching: React.FC = () => {
                   </SelectNarrow>
                 </FormGroup>
               </div>
+              <div style={{ flex: '0 0 240px' }}>
+                <FormGroup>
+                  <Label htmlFor="selectedVehicleCallSign" className="required">Dispatched Vehicle</Label>
+                  <Select id="selectedVehicleCallSign" name="selectedVehicleCallSign" value={form.selectedVehicleCallSign} onChange={handleChange} disabled={!isActive} required>
+                    <option value="">Select a vehicle...</option>
+                    {(() => {
+                      const selectedStation = stationOptions.find(s => s.id === form.assignedStation)?.name || '';
+                      const norm = (s: string) => s.toString().trim().toLowerCase();
+                      return vehicleOptions
+                        .filter(v => !selectedStation || norm(v.stationName) === norm(selectedStation))
+                        .map(v => (
+                          <option key={v.value} value={v.value}>{v.label}</option>
+                        ));
+                    })()}
+                  </Select>
+                </FormGroup>
+              </div>
               <div style={{ flex: '0 0 120px' }}>
                 <FormGroup>
                   <Label htmlFor="assignedVehicle">Dispatched Time</Label>
@@ -612,27 +639,39 @@ export const IncidentCallDispatching: React.FC = () => {
               <div style={{ flex: '0 0 135px' }}>
                 <FormGroup>
                   <Label>&nbsp;</Label>
-                  <DispatchButton style={{ width: '100%' }} type="button" onClick={addDispatch} disabled={!isActive || !form.assignedStation || !form.assignedVehicle}>Add Dispatch</DispatchButton>
+                  <DispatchButton style={{ width: '100%' }} type="button" onClick={addDispatch} disabled={!isActive || !form.assignedStation || !form.assignedVehicle || !form.selectedVehicleCallSign}>Add Dispatch</DispatchButton>
+                </FormGroup>
+              </div>
+              <div style={{ marginLeft: 'auto', flex: '0 0 320px' }}>
+                <FormGroup>
+                  <Label htmlFor="dispatcher" className="required">Dispatcher</Label>
+                  <Select id="dispatcher" name="dispatcher" value={form.dispatcher} onChange={handleChange} required disabled={!isActive}>
+                    <option value="">Select Dispatcher...</option>
+                    {dispatcherOptions.map(opt => (
+                      <option key={opt.staff_id} value={opt.staff_id}>{opt.full_name}</option>
+                    ))}
+                  </Select>
                 </FormGroup>
               </div>
             </div>
           </div>
 
-          <div style={{ marginTop: '16px' }}>
-            <Section>
-              <h3 style={{ color: '#1177BB', margin: '0 0 10px' }}>Dispatched Stations</h3>
+        <div style={{ marginTop: '16px' }}>
+          <Section>
+            <h3 style={{ color: '#1177BB', margin: '0 0 10px' }}>Dispatched Stations</h3>
               {dispatched.length === 0 ? (
                 <p style={{ color: '#666' }}>No stations dispatched yet.</p>
               ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {dispatched.map(d => (
-                    <li key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #eee' }}>
-                      <span><strong>{d.name}</strong> — dispatched at {d.time}</span>
-                      <CancelButton type="button" onClick={() => removeDispatch(d.id)} disabled={!isActive}>Remove</CancelButton>
-                    </li>
-                  ))}
-                </ul>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {dispatched.map(d => (
+                  <li key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '12px', padding: '8px', borderBottom: '1px solid #eee' }}>
+                    <CancelButton type="button" onClick={() => removeDispatch(d.id)} disabled={!isActive}>Remove</CancelButton>
+                    <span><strong>{d.name}</strong>{(d as any).vehicle ? ` — ${(d as any).vehicle}` : ''} — dispatched at {d.time}</span>
+                  </li>
+                ))}
+              </ul>
               )}
+
             </Section>
           </div>
           

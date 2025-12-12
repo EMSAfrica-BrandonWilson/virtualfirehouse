@@ -421,11 +421,9 @@ export const RespondingResources: React.FC = () => {
               )}
             </ImageColumn>
           </FlexRow>
-          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-            <Input type="text" value={form.incidentNumber} readOnly placeholder="yyyy-mm-dd hh:mm 00001" style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }} />
-          </div>
-          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px' }}>
             <PrimaryButton onClick={onInitiate}>Initiate Resources</PrimaryButton>
+            <Input type="text" value={form.incidentNumber} readOnly placeholder="yyyy-mm-dd hh:mm 00001" style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }} />
           </div>
 
           <div style={{ marginTop: '12px' }}>
@@ -471,9 +469,9 @@ export const RespondingResources: React.FC = () => {
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                   {responding.map(rv => (
-                    <li key={rv.vehicle_value} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #eee' }}>
-                      <span><strong>{rv.vehicle_label}</strong> — from {rv.station_name}{rv.time ? ` at ${rv.time}` : ''}</span>
+                    <li key={rv.vehicle_value} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '12px', padding: '8px', borderBottom: '1px solid #eee' }}>
                       <CancelButton type="button" onClick={() => removeRespondingVehicle(rv.vehicle_value)} disabled={!isActive}>Remove</CancelButton>
+                      <span><strong>{rv.vehicle_label}</strong> — from {rv.station_name}{rv.time ? ` at ${rv.time}` : ''}</span>
                     </li>
                   ))}
                 </ul>

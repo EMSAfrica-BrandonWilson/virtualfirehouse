@@ -541,7 +541,8 @@ export const IncidentCallTaking: React.FC = () => {
               )}
             </ImageColumn>
           </FlexRow>
-          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'flex-end', gap: '16px', justifyContent: 'space-between' }}>
+            <EmergencyButton onClick={initiateNewIncident}>Initiate a New Emergency Incident</EmergencyButton>
             <Input
               type="text"
               id="incidentNumber"
@@ -553,9 +554,6 @@ export const IncidentCallTaking: React.FC = () => {
               style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }}
               readOnly
             />
-          </div>
-          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <EmergencyButton onClick={initiateNewIncident}>Initiate a New Emergency Incident</EmergencyButton>
           </div>
 
           <div style={{ marginTop: '12px' }}>
