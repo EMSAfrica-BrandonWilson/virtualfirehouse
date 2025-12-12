@@ -42,13 +42,14 @@ const ActionButton = styled.button`
 
 const InlineFormGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   max-width: 1360px;
   margin: 12px 0 0;
   align-items: start;
   justify-items: stretch;
-  @media (max-width: 1200px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 1200px) { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 900px) { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: 640px) { grid-template-columns: 1fr; }
 `;
 
@@ -166,6 +167,8 @@ export const TestPage: React.FC = () => {
   const [isActive, setIsActive] = useState(false);
   const [dispatcherOptions, setDispatcherOptions] = useState<{ staff_id: string; full_name: string }[]>([]);
   const [stationOptions, setStationOptions] = useState<{ id: string; name: string }[]>([]);
+  const [vehicleOptions, setVehicleOptions] = useState<{ value: string; label: string; station: string }[]>([]);
+  const [responding, setResponding] = useState<{ station_id: string; station_name: string; vehicle_value: string; vehicle_label: string; time?: string }[]>([]);
   const [dispatched, setDispatched] = useState<Array<{ id: string; name: string; time: string }>>([]);
   const [form, setForm] = useState({
     shiftOnDuty: '',
@@ -205,6 +208,59 @@ export const TestPage: React.FC = () => {
       setStationOptions(rows.map((r: any) => ({ id: String(r.id), name: r.fire_station_name })));
     })();
   }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const { data } = await supabase
+          .from('03_ecc_02_duty_roster_01_station_assignments')
+          .select('call_sign, vehicle_type, status, station_assignment')
+          .eq('assignment_date', today)
+          .eq('status', 'In Service')
+          .order('call_sign', { ascending: true });
+        const rows = Array.isArray(data) ? data : [];
+        const deduped = rows.filter((item, idx, arr) => {
+          const key = (item.call_sign || '').toString().trim().toUpperCase();
+          return arr.findIndex(x => (x.call_sign || '').toString().trim().toUpperCase() === key) === idx;
+        });
+        setVehicleOptions(deduped.map((r: any) => ({
+          value: String(r.call_sign || ''),
+          label: `${r.call_sign || ''} ${r.vehicle_type || ''}`.trim(),
+          station: String(r.station_assignment || '')
+        })));
+      } catch {
+        setVehicleOptions([]);
+      }
+    })();
+  }, []);
+  const filteredVehicleOptions = React.useMemo(() => {
+    const selectedStation = stationOptions.find(s => s.id === form.assignedStation)?.name || '';
+    if (!selectedStation) return vehicleOptions;
+    const key = selectedStation.toString().trim().toLowerCase();
+    return vehicleOptions.filter(v => (v.station || '').toString().trim().toLowerCase() === key);
+  }, [vehicleOptions, stationOptions, form.assignedStation]);
+  const getSelectedStationIds = (): Set<string> => new Set([form.assignedStation].filter(Boolean) as string[]);
+  const getSelectedVehicleValues = (): Set<string> => new Set([form.assignedVehicle, ...responding.map(r => r.vehicle_value)].filter(Boolean) as string[]);
+  const addRespondingVehicle = () => {
+    if (!form.assignedStation || !form.assignedVehicle) return;
+    const station = stationOptions.find(s => s.id === form.assignedStation);
+    const vehicle = vehicleOptions.find(v => v.value === form.assignedVehicle);
+    if (!station || !vehicle) return;
+    const exists = responding.some(r => r.vehicle_value === vehicle.value);
+    if (exists) return;
+    const entry = {
+      station_id: station.id,
+      station_name: station.name,
+      vehicle_value: vehicle.value,
+      vehicle_label: vehicle.label,
+      time: getTimeStr()
+    };
+    setResponding(prev => [...prev, entry]);
+    setForm(prev => ({ ...prev, assignedVehicle: '' }));
+  };
+  const removeRespondingVehicle = (vehicleValue: string) => {
+    setResponding(prev => prev.filter(r => r.vehicle_value !== vehicleValue));
+  };
   const getTimeStr = () => {
     const d = new Date();
     const hh = String(d.getHours()).padStart(2, '0');
@@ -273,7 +329,7 @@ export const TestPage: React.FC = () => {
               <Title id="test-page-title">Test page</Title>
               <Divider aria-hidden="true" />
               <Paragraph>
-                Coordinate and record dispatch actions for emergency incidents, including resource assignment, timing, and category classification. Initiate a dispatch to activate the input fields and capture operational details.
+                Allocate responding stations and vehicles for the active incident. Initiate resources to enable selection fields and enforce unique assignments across dropdowns.
               </Paragraph>
             </Column>
             <ImageColumn>
@@ -290,106 +346,61 @@ export const TestPage: React.FC = () => {
             <Input type="text" value={incidentNumber} readOnly placeholder="yyyy-mm-dd hh:mm 00001" style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }} />
           </div>
           <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <EmergencyButton>Initiate a New Emergency Incident</EmergencyButton>
+            <PrimaryButton onClick={onInitiate}>Initiate Resources</PrimaryButton>
           </div>
 
           <div style={{ marginTop: '12px' }}>
             <InlineFormGrid>
-              <FormGroup>
-                <Label htmlFor="shiftOnDuty" className="required">Shift on Duty</Label>
-                <Select id="shiftOnDuty" name="shiftOnDuty" value={ctForm.shiftOnDuty} onChange={onCtChange} required>
-                  <option value="">Select Shift...</option>
-                  <option value="Blue">Blue Shift</option>
-                  <option value="Green">Green Shift</option>
-                  <option value="Red">Red Shift</option>
+              <FormGroupWide>
+                <Label htmlFor="assignedStation">Responding Fire Station/s</Label>
+                <Select id="assignedStation" name="assignedStation" value={form.assignedStation} onChange={handleChange} disabled={!isActive}>
+                  <option value="">Select a fire station...</option>
+                  {stationOptions.map(st => {
+                    const selected = getSelectedStationIds();
+                    const isDisabled = selected.has(st.id) && form.assignedStation !== st.id;
+                    return (
+                      <option key={st.id} value={st.id} disabled={isDisabled}>{st.name}</option>
+                    );
+                  })}
                 </Select>
-              </FormGroup>
-              <FormGroup>
-                <Label htmlFor="callTaker" className="required">Call Taker</Label>
-                <Select id="callTaker" name="callTaker" value={ctForm.callTaker} onChange={onCtChange} required>
-                  <option value="">Select Call Taker...</option>
+              </FormGroupWide>
+              <FormGroupWide>
+                <Label htmlFor="assignedVehicle">Responding Fire Vehicle/s</Label>
+                <Select id="assignedVehicle" name="assignedVehicle" value={form.assignedVehicle} onChange={handleChange} disabled={!isActive}>
+                  <option value="">Select vehicle...</option>
+                  {filteredVehicleOptions.map(v => {
+                    const selected = getSelectedVehicleValues();
+                    const isDisabled = selected.has(v.value) && form.assignedVehicle !== v.value;
+                    return (
+                      <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
+                    );
+                  })}
                 </Select>
-              </FormGroup>
+              </FormGroupWide>
               <FormGroup>
-                <Label htmlFor="incidentDate" className="required">Incident Date</Label>
-                <Input type="date" id="incidentDate" name="incidentDate" value={ctForm.incidentDate} onChange={onCtChange} required />
-              </FormGroup>
-              <FormGroup>
-                <Label htmlFor="incidentTime" className="required">Incident Time</Label>
-                <Input type="time" id="incidentTime" name="incidentTime" value={ctForm.incidentTime} onChange={onCtChange} required />
+                <Label>&nbsp;</Label>
+                <DispatchButton type="button" onClick={addRespondingVehicle} disabled={!isActive || !form.assignedStation || !form.assignedVehicle}>Add Responding Vehicle</DispatchButton>
               </FormGroup>
             </InlineFormGrid>
           </div>
 
-          <div style={{ marginTop: '12px' }}>
-            <InlineFormGrid>
-              <FormGroup>
-                <Label htmlFor="callName" className="required">Caller Name</Label>
-                <Input id="callName" name="callName" value={ctForm.callName} onChange={onCtChange} required placeholder="Enter caller name" />
-              </FormGroup>
-              <FormGroup>
-                <Label htmlFor="callerNumber" className="required">Caller Number</Label>
-                <Input type="tel" id="callerNumber" name="callerNumber" value={ctForm.callerNumber} onChange={onCtChange} required placeholder="e.g., +966-XX-XXXXXXX" />
-              </FormGroup>
-              <FormGroup>
-                <Label htmlFor="secondCaller">2nd Caller</Label>
-                <Input id="secondCaller" name="secondCaller" value={ctForm.secondCaller} onChange={onCtChange} placeholder="Enter 2nd caller name" />
-              </FormGroup>
-              <FormGroup>
-                <Label htmlFor="secondCallerNumber">2nd Caller Number</Label>
-                <Input type="tel" id="secondCallerNumber" name="secondCallerNumber" value={ctForm.secondCallerNumber} onChange={onCtChange} placeholder="e.g., +966-XX-XXXXXXX" />
-              </FormGroup>
-            </InlineFormGrid>
+          <div style={{ marginTop: '16px' }}>
+            <Section>
+              <h3 style={{ color: '#1177BB', margin: '0 0 10px' }}>Responding Vehicles</h3>
+              {responding.length === 0 ? (
+                <p style={{ color: '#666' }}>No responding vehicles added yet.</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {responding.map(rv => (
+                    <li key={rv.vehicle_value} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #eee' }}>
+                      <span><strong>{rv.vehicle_label}</strong> — from {rv.station_name}{rv.time ? ` at ${rv.time}` : ''}</span>
+                      <CancelButton type="button" onClick={() => removeRespondingVehicle(rv.vehicle_value)} disabled={!isActive}>Remove</CancelButton>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
           </div>
-
-          <div style={{ marginTop: '12px' }}>
-            <InlineFormGrid>
-              <FormGroup>
-                <Label htmlFor="incidentCategory" className="required">Incident Category</Label>
-                <Select id="incidentCategory" name="incidentCategory" value={ctForm.incidentCategory} onChange={onCtChange} required>
-                  <option value="">Select Incident Category...</option>
-                  <option value="Emergency">Emergency</option>
-                  <option value="Incident">Incident</option>
-                  <option value="Maintenance">Maintenance</option>
-                  <option value="Training">Training</option>
-                  <option value="Routine">Routine</option>
-                </Select>
-              </FormGroup>
-              <FormGroup>
-                <Label htmlFor="incidentSubCategory">Incident Sub-Category</Label>
-                <Select id="incidentSubCategory" name="incidentSubCategory" value={ctForm.incidentSubCategory} onChange={onCtChange}>
-                  <option value="">Select Sub-Category...</option>
-                  <option value="Fire">Fire</option>
-                  <option value="Medical">Medical</option>
-                  <option value="Rescue">Rescue</option>
-                  <option value="HazMat">Hazardous Materials</option>
-                  <option value="Other">Other</option>
-                </Select>
-              </FormGroup>
-            </InlineFormGrid>
-          </div>
-
-          <div style={{ marginTop: '12px' }}>
-            <InlineFormGrid>
-              <FormGroup>
-                <Label htmlFor="streetNo">Street No</Label>
-                <Input id="streetNo" name="streetNo" value={ctForm.streetNo} onChange={onCtChange} placeholder="e.g., 123" />
-              </FormGroup>
-              <FormGroup>
-                <Label htmlFor="streetName" className="required">Street Name</Label>
-                <Input id="streetName" name="streetName" value={ctForm.streetName} onChange={onCtChange} required placeholder="e.g., King Fahd Road" />
-              </FormGroup>
-              <FormGroup>
-                <Label htmlFor="suburb" className="required">Suburb</Label>
-                <Input id="suburb" name="suburb" value={ctForm.suburb} onChange={onCtChange} required placeholder="e.g., Dammam" />
-              </FormGroup>
-            </InlineFormGrid>
-          </div>
-
-          <ButtonRow>
-            <CancelButton>Cancel Incident</CancelButton>
-            <DispatchButton>Dispatch Incident</DispatchButton>
-          </ButtonRow>
         </div>
       </Section>
     </MainContent>

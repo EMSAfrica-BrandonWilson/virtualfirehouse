@@ -121,6 +121,16 @@ const Select = styled.select`
   &:focus { border-color: #1177BB; outline: none; }
 `;
 
+const SelectNarrow = styled(Select)`
+  width: 100%;
+`;
+
+const InlineField = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+`;
+
 const InlineFormGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -552,7 +562,18 @@ export const IncidentCallDispatching: React.FC = () => {
               )}
             </ImageColumn>
           </FlexRow>
-          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '12px' }}>
+            <div style={{ flex: '0 0 320px' }}>
+              <InlineField>
+                <Select id="dispatcher" name="dispatcher" value={form.dispatcher} onChange={handleChange} required disabled={!isActive} style={{ flex: 1 }}>
+                  <option value="">Select Dispatcher...</option>
+                  {dispatcherOptions.map(opt => (
+                    <option key={opt.staff_id} value={opt.staff_id}>{opt.full_name}</option>
+                  ))}
+                </Select>
+                <Label htmlFor="dispatcher" className="required" style={{ marginBottom: 0 }}>Dispatcher</Label>
+              </InlineField>
+            </div>
             <Input
               type="text"
               id="incidentNumber"
@@ -565,44 +586,36 @@ export const IncidentCallDispatching: React.FC = () => {
               readOnly
             />
           </div>
-          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'flex-end', gap: '16px', justifyContent: 'flex-start' }}>
             <PrimaryButton onClick={onInitiate}>Initiate Dispatch</PrimaryButton>
           </div>
 
           <div style={{ marginTop: '12px' }}>
-            <InlineFormGrid>
-              <FormGroup>
-                <Label htmlFor="dispatcher" className="required">Dispatcher</Label>
-                <Select id="dispatcher" name="dispatcher" value={form.dispatcher} onChange={handleChange} required disabled={!isActive}>
-                  <option value="">Select Dispatcher...</option>
-                  {dispatcherOptions.map(opt => (
-                    <option key={opt.staff_id} value={opt.staff_id}>{opt.full_name}</option>
-                  ))}
-                </Select>
-              </FormGroup>
-            </InlineFormGrid>
-          </div>
-
-          <div style={{ marginTop: '12px' }}>
-            <InlineFormGrid>
-              <FormGroupWide>
-                <Label htmlFor="assignedStation" className="required">Responding Fire Stations</Label>
-                <Select id="assignedStation" name="assignedStation" value={form.assignedStation} onChange={handleChange} disabled={!isActive} required>
-                  <option value="">Select a fire station...</option>
-                  {stationOptions.map(st => (
-                    <option key={st.id} value={st.id}>{st.name}</option>
-                  ))}
-                </Select>
-              </FormGroupWide>
-              <FormGroup>
-                <Label htmlFor="assignedVehicle">Dispatched Time</Label>
-                <Input id="assignedVehicle" name="assignedVehicle" value={form.assignedVehicle} onChange={handleChange} disabled={!isActive} readOnly placeholder="hh:mm" />
-              </FormGroup>
-              <FormGroup>
-                <Label>&nbsp;</Label>
-                <DispatchButton type="button" onClick={addDispatch} disabled={!isActive || !form.assignedStation || !form.assignedVehicle}>Add Dispatch</DispatchButton>
-              </FormGroup>
-            </InlineFormGrid>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ flex: '0 0 260px' }}>
+                <FormGroup>
+                  <Label htmlFor="assignedStation" className="required">Responding Fire Stations</Label>
+                  <SelectNarrow id="assignedStation" name="assignedStation" value={form.assignedStation} onChange={handleChange} disabled={!isActive} required>
+                    <option value="">Select a fire station...</option>
+                    {stationOptions.map(st => (
+                      <option key={st.id} value={st.id}>{st.name}</option>
+                    ))}
+                  </SelectNarrow>
+                </FormGroup>
+              </div>
+              <div style={{ flex: '0 0 120px' }}>
+                <FormGroup>
+                  <Label htmlFor="assignedVehicle">Dispatched Time</Label>
+                  <Input id="assignedVehicle" name="assignedVehicle" value={form.assignedVehicle} onChange={handleChange} disabled={!isActive} readOnly placeholder="hh:mm" />
+                </FormGroup>
+              </div>
+              <div style={{ flex: '0 0 135px' }}>
+                <FormGroup>
+                  <Label>&nbsp;</Label>
+                  <DispatchButton style={{ width: '100%' }} type="button" onClick={addDispatch} disabled={!isActive || !form.assignedStation || !form.assignedVehicle}>Add Dispatch</DispatchButton>
+                </FormGroup>
+              </div>
+            </div>
           </div>
 
           <div style={{ marginTop: '16px' }}>

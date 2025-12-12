@@ -190,7 +190,8 @@ export const ContentPane = styled.div`
   background: white;
   padding: 10px;
   height: 100%;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 `;
 
 export const LeftPane = styled.div`

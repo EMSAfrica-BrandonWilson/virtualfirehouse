@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { usePageImage } from '../../hooks/usePageImage';
+import { supabase } from '../../lib/supabase';
 
 const MainContent = styled.main`
   margin: 10px;
   font-family: 'Segoe UI Variable Display', 'Poppins', Arial, sans-serif;
   font-size: 112.5%;
+  overflow-x: hidden;
 `;
 
 const Section = styled.section`
@@ -209,8 +211,24 @@ export const IncidentNarrative: React.FC = () => {
     setMessages(prev => prev.filter((_, i) => i !== idx));
   };
 
-  const onContinue = () => {
-    navigate('/control/emergency-incident-logging/casualties');
+  const onSave = async () => {
+    try {
+      const payload: any = {
+        incident_number: incidentNumber,
+        oic_name: oicName.trim(),
+        messages: messages
+      };
+      const { error } = await supabase
+        .from('03_ecc_03_04_Incident_Narrative')
+        .upsert([payload], { onConflict: 'incident_number' });
+      if (error) {
+        alert(`Failed to save narrative: ${error.message}`);
+        return;
+      }
+      navigate('/control/emergency-incident-logging/casualties');
+    } catch (e: any) {
+      alert(`Unexpected error saving narrative: ${e?.message || e}`);
+    }
   };
 
   return (
@@ -267,9 +285,9 @@ export const IncidentNarrative: React.FC = () => {
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                   {messages.map((m, idx) => (
-                    <li key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #eee' }}>
-                      <span><strong>{m.oic}</strong> — {m.text} <em style={{ color: '#666' }}>at {m.time}</em></span>
+                    <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', borderBottom: '1px solid #eee' }}>
                       <ActionButton onClick={() => removeMessage(idx)}>Remove</ActionButton>
+                      <span><strong>{m.oic}</strong> — {m.text} <em style={{ color: '#666' }}>at {m.time}</em></span>
                     </li>
                   ))}
                 </ul>
@@ -279,7 +297,7 @@ export const IncidentNarrative: React.FC = () => {
         </div>
       </Section>
       <ButtonRow>
-        <ActionButton onClick={onContinue}>Save & Continue to Casualties & Fatalities</ActionButton>
+        <ActionButton onClick={onSave}>Save & Continue to Casualties & Fatalities</ActionButton>
       </ButtonRow>
     </MainContent>
   );

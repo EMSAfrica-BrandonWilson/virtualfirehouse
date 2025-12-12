@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { usePageImage } from '../../hooks/usePageImage';
+import { supabase } from '../../lib/supabase';
 
 const MainContent = styled.main`
   margin: 10px;
   font-family: 'Segoe UI Variable Display', 'Poppins', Arial, sans-serif;
   font-size: 112.5%;
+  overflow-x: hidden;
 `;
 
 const Section = styled.section`
@@ -91,6 +93,63 @@ const Input = styled.input`
   &:focus { border-color: #1177BB; outline: none; }
 `;
 
+const Label = styled.label`
+  font-weight: bold;
+  font-size: 12px;
+  margin-bottom: 5px;
+  color: #444;
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 13px;
+  background-color: white;
+  &:focus { border-color: #1177BB; outline: none; }
+`;
+
+const TextArea = styled.textarea`
+  width: 288px;
+  min-width: 288px;
+  max-width: 288px;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 60px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  &:focus { border-color: #1177BB; outline: none; }
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+`;
+
+const InlineRow = styled.div`
+  display: grid;
+  grid-template-columns: 120px 120px 120px 288px;
+  column-gap: 10px;
+  align-items: end;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+`;
+const SmallGroup = styled(FormGroup)`
+  width: 120px;
+`;
+
+const DescriptionGroup = styled(FormGroup)`
+  width: 288px;
+  min-width: 288px;
+  max-width: 288px;
+`;
+
 const ButtonRow = styled.div`
   display: flex;
   gap: 12px;
@@ -117,11 +176,63 @@ export const IncidentCasualtiesAndFatalities: React.FC = () => {
   const { imageUrl, loading: imageLoading } = usePageImage('incident-casualties-fatalities', '/images/ControlRoom.png');
   const navigate = useNavigate();
   const [incidentNumber, setIncidentNumber] = useState('');
+  const [entry, setEntry] = useState({ type: '', gender: '', ageGroup: '', description: '' });
+  const [records, setRecords] = useState<Array<{ type: string; gender: string; ageGroup: string; description: string }>>([]);
 
   useEffect(() => {
     const inc = localStorage.getItem('vfh_current_incident_number') || '';
     setIncidentNumber(inc);
   }, []);
+
+  useEffect(() => {
+    if (!incidentNumber) return;
+    try {
+      const saved = localStorage.getItem(`vfh_casualties:${incidentNumber}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setRecords(parsed);
+      }
+    } catch {}
+  }, [incidentNumber]);
+
+  useEffect(() => {
+    if (!incidentNumber) return;
+    try { localStorage.setItem(`vfh_casualties:${incidentNumber}`, JSON.stringify(records)); } catch {}
+  }, [records, incidentNumber]);
+
+  const onEntryChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setEntry(prev => ({ ...prev, [name]: value }));
+  };
+
+  const addRecord = () => {
+    if (!entry.type || !entry.gender || !entry.ageGroup || !entry.description.trim()) return;
+    setRecords(prev => [...prev, { ...entry }]);
+    setEntry({ type: '', gender: '', ageGroup: '', description: '' });
+  };
+
+  const removeRecord = (idx: number) => {
+    setRecords(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const onSave = async () => {
+    try {
+      const payload: any = {
+        incident_number: incidentNumber,
+        entries: records
+      };
+      const { error } = await supabase
+        .from('03_ecc_03_05_Casualties_&_Fatalities')
+        .upsert([payload], { onConflict: 'incident_number' });
+      if (error) {
+        alert(`Failed to save casualties: ${error.message}`);
+        return;
+      }
+      navigate('/control/emergency-incident-logging/damage-loss');
+    } catch (e: any) {
+      alert(`Unexpected error saving casualties: ${e?.message || e}`);
+    }
+  };
 
   return (
     <MainContent aria-label="Main content">
@@ -154,11 +265,105 @@ export const IncidentCasualtiesAndFatalities: React.FC = () => {
               style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }}
             />
           </div>
+          <div style={{ marginTop: '12px' }}>
+            <InlineRow>
+              <SmallGroup>
+                <Label htmlFor="type">Casualty / Fatality</Label>
+                <DropdownFixed id="type" name="type" value={entry.type} onChange={onEntryChange}>
+                  <option value="">Select...</option>
+                  <option value="Casualty">Casualty</option>
+                  <option value="Fatality">Fatality</option>
+                </DropdownFixed>
+              </SmallGroup>
+              <SmallGroup>
+                <Label htmlFor="gender">Gender</Label>
+                <DropdownFixed id="gender" name="gender" value={entry.gender} onChange={onEntryChange}>
+                  <option value="">Select...</option>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                </DropdownFixed>
+              </SmallGroup>
+              <SmallGroup>
+                <Label htmlFor="ageGroup">Age Group</Label>
+                <DropdownFixed id="ageGroup" name="ageGroup" value={entry.ageGroup} onChange={onEntryChange}>
+                  <option value="">Select...</option>
+                  <option value="Adult">Adult</option>
+                  <option value="Child">Child</option>
+                </DropdownFixed>
+              </SmallGroup>
+              <DescriptionGroup>
+                <Label htmlFor="description">Description</Label>
+                <TextArea id="description" name="description" value={entry.description} onChange={onEntryChange} placeholder="Enter details" />
+              </DescriptionGroup>
+            </InlineRow>
+          </div>
+          <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-start' }}>
+            <ButtonFixed type="button" onClick={addRecord}>Add</ButtonFixed>
+          </div>
+          <div style={{ marginTop: '12px' }}>
+            <Section>
+              {records.length === 0 ? (
+                <p style={{ color: '#666' }}>No casualties or fatalities added yet.</p>
+              ) : (
+                <RecordsList>
+                  {records.map((r, idx) => (
+                    <RecordItem key={idx}>
+                      <ButtonFixed type="button" onClick={() => removeRecord(idx)}>Remove</ButtonFixed>
+                      <RecordMeta><strong>{r.type}</strong> — {r.gender}, {r.ageGroup}</RecordMeta>
+                      <RecordDesc>{r.description}</RecordDesc>
+                    </RecordItem>
+                  ))}
+                </RecordsList>
+              )}
+            </Section>
+          </div>
         </div>
       </Section>
       <ButtonRow>
-        <ActionButton onClick={() => navigate('/control/emergency-incident-logging/damage-loss')}>Save & Continue to Damage / Loss Reporting</ActionButton>
+        <ActionButton onClick={onSave}>Save & Continue to Damage / Loss Reporting</ActionButton>
       </ButtonRow>
     </MainContent>
   );
 };
+const AddContainer = styled.div`
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+`;
+
+const ButtonFixed = styled(ActionButton)`
+  min-width: 120px;
+  text-align: center;
+`;
+
+const RecordsList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+`;
+
+const RecordItem = styled.li`
+  display: grid;
+  grid-template-columns: 120px auto 1fr;
+  column-gap: 8px;
+  align-items: start;
+  padding: 8px 8px 8px 0;
+  border-bottom: 1px solid #eee;
+  max-width: 100%;
+  box-sizing: border-box;
+`;
+
+const RecordMeta = styled.span`
+  white-space: normal;
+`;
+
+const RecordDesc = styled.span`
+  color: #333;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+`;
+const DropdownFixed = styled(Select)`
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+`;
