@@ -172,14 +172,14 @@ const processAuthUrl = async () => {
       const refreshToken = hashParams.get('refresh_token');
       const type = hashParams.get('type');
       
-      if (accessToken && (type === 'signup' || type === 'recovery' || type === 'email_change')) {
+      if (accessToken && refreshToken && (type === 'signup' || type === 'recovery' || type === 'email_change')) {
         console.log('Email confirmation detected, type:', type);
         
         // Set the session from URL parameters
         const sb = ensureRealClient();
         const { error } = await sb.auth.setSession({
           access_token: accessToken,
-          refresh_token: refreshToken || ''
+          refresh_token: refreshToken
         });
         
         if (error) {
@@ -200,13 +200,13 @@ const processAuthUrl = async () => {
     const refreshToken = url.searchParams.get('refresh_token');
     const type = url.searchParams.get('type');
     
-    if (accessToken && (type === 'signup' || type === 'recovery' || type === 'email_change')) {
+    if (accessToken && refreshToken && (type === 'signup' || type === 'recovery' || type === 'email_change')) {
       console.log('Email confirmation detected in query params, type:', type);
       
       const sb = ensureRealClient();
       const { error } = await sb.auth.setSession({
         access_token: accessToken,
-        refresh_token: refreshToken || ''
+        refresh_token: refreshToken
       });
       
       if (error) {
@@ -328,6 +328,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const { data: { session: currentSession }, error } = await sb.auth.getSession();
         if (error) {
           console.error('Error getting session:', error);
+          if (typeof error.message === 'string' && error.message.includes('Invalid Refresh Token')) {
+            try {
+              await sb.auth.signOut();
+            } catch {}
+          }
         } else {
           console.log('Current session:', currentSession ? 'Found' : 'None', currentSession?.user?.email);
           setSession(currentSession);

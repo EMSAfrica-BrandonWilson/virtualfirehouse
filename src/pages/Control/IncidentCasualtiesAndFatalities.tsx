@@ -217,18 +217,21 @@ export const IncidentCasualtiesAndFatalities: React.FC = () => {
 
   const onSave = async () => {
     try {
-      const payload: any = {
+      const directPayload: any = {
         incident_number: incidentNumber,
         entries: records
       };
-      const { error } = await supabase
-        .from('03_ecc_03_05_Casualties_&_Fatalities')
-        .upsert([payload], { onConflict: 'incident_number' });
+      const { error } = await supabase.functions.invoke('casualties-crud', { body: { action: 'upsert', ...directPayload } });
       if (error) {
-        alert(`Failed to save casualties: ${error.message}`);
-        return;
+        const { error: upsertError } = await supabase
+          .from('03_ecc_03_05_Casualties_&_Fatalities')
+          .upsert([directPayload], { onConflict: 'incident_number' });
+        if (upsertError) {
+          alert(`Failed to save casualties: ${upsertError.message}`);
+          return;
+        }
       }
-      navigate('/control/emergency-incident-logging/damage-loss');
+      navigate('/control/emergency-incident-logging/property-information');
     } catch (e: any) {
       alert(`Unexpected error saving casualties: ${e?.message || e}`);
     }
@@ -322,7 +325,7 @@ export const IncidentCasualtiesAndFatalities: React.FC = () => {
         </div>
       </Section>
       <ButtonRow>
-        <ActionButton onClick={onSave}>Save & Continue to Damage / Loss Reporting</ActionButton>
+        <ActionButton onClick={onSave}>Save & Continue to Property Information</ActionButton>
       </ButtonRow>
     </MainContent>
   );
