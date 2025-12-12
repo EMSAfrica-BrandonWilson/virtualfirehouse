@@ -48,6 +48,18 @@ import { EmergencyIncidentLogging } from './pages/Control/EmergencyIncidentLoggi
 import { IncidentCallTaking } from './pages/Control/IncidentCallTaking';
 import { IncidentCallDispatching } from './pages/Control/IncidentCallDispatching';
 import { RespondingResources } from './pages/Control/RespondingResources';
+import { IncidentNarrative } from './pages/Control/IncidentNarrative';
+import { IncidentCasualtiesAndFatalities } from './pages/Control/IncidentCasualtiesAndFatalities';
+import { IncidentDamageLossReporting } from './pages/Control/IncidentDamageLossReporting';
+import { IncidentEquipmentUsed } from './pages/Control/IncidentEquipmentUsed';
+import { IncidentPropertyInformation } from './pages/Control/IncidentPropertyInformation';
+import { IncidentRouteFinder } from './pages/Control/IncidentRouteFinder';
+import { IncidentWeatherInformation } from './pages/Control/IncidentWeatherInformation';
+import { IncidentMultiMediaFiles } from './pages/Control/IncidentMultiMediaFiles';
+import { IncidentRecordModificationHistory } from './pages/Control/IncidentRecordModificationHistory';
+import { IncidentRecordLockStatus } from './pages/Control/IncidentRecordLockStatus';
+import { IncidentReport } from './pages/Control/IncidentReport';
+import { TestPage } from './pages/Control/TestPage';
 const EmergencyIncidentReports = lazy(() => import('./pages/Control/EmergencyIncidentReports').then(m => ({ default: m.EmergencyIncidentReports })));
 import { ECCChecklists } from './pages/Control/ECCChecklists';
 import { ApplianceBayDoors } from './pages/Control/Checklists/ApplianceBayDoors';
@@ -901,6 +913,128 @@ function App() {
                 </MainMaster>
               } />
               
+              <Route path="/control/emergency-incident-logging/narrative" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentNarrative />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+
+              <Route path="/control/emergency-incident-logging/casualties" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentCasualtiesAndFatalities />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+
+              <Route path="/control/emergency-incident-logging/damage-loss" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentDamageLossReporting />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/equipment-used" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentEquipmentUsed />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/equipment" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentEquipmentUsed />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/property-information" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentPropertyInformation />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/property" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentPropertyInformation />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/route-finder" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentRouteFinder />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/weather" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentWeatherInformation />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/media" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentMultiMediaFiles />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/record-modification-history" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentRecordModificationHistory />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/history" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentRecordModificationHistory />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/record-lock-status" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentRecordLockStatus />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/lock-status" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentRecordLockStatus />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/incident-report" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentReport />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              <Route path="/control/emergency-incident-logging/report" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentReport />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
+              
+              <Route path="/control/emergency-incident-logging/test" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <TestPage />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
               <Route path="/control/emergency-incident-reports" element={
                 <MainMaster>
                   <ProtectedRoute>

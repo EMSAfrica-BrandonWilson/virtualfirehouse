@@ -333,6 +333,7 @@ const getLeftMenuItems = (currentPath: string, isSystemAdmin: boolean = false, u
         { name: 'record-modification-history', path: '/control/emergency-incident-logging/history', text: 'Record Modification History' },
         { name: 'record-lock-status', path: '/control/emergency-incident-logging/lock-status', text: 'Record Lock Status' },
         { name: 'incident-report', path: '/control/emergency-incident-logging/report', text: 'Incident Report' },
+        { name: 'test-page', path: '/control/emergency-incident-logging/test', text: 'Test page' },
       ];
     }
     

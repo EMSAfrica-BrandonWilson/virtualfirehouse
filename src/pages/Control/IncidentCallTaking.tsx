@@ -241,22 +241,14 @@ const DispatchButton = styled.button`
 
 const InlineFormGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   max-width: 1360px;
   margin: 12px auto 0;
   align-items: start;
   justify-items: stretch;
-  
-  @media (max-width: 1200px) {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  @media (max-width: 900px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-  }
+  @media (max-width: 1200px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px) { grid-template-columns: 1fr; }
 `;
 
 const CallTakingContainer = styled.div`
@@ -390,6 +382,10 @@ export const IncidentCallTaking: React.FC = () => {
     }
     if (name === 'callTaker') {
       localStorage.setItem('vfh_call_taker_id', value);
+      const override = localStorage.getItem('vfh_dispatcher_user_override');
+      if (override !== '1') {
+        localStorage.setItem('vfh_dispatcher_id', value);
+      }
     }
     setFormData(prev => {
       const next = { ...prev, [name]: value };
@@ -524,218 +520,10 @@ export const IncidentCallTaking: React.FC = () => {
             <Column style={{ flex: '1', minWidth: '0' }}>
               <Title id="call-taking-title">Incident Call Taking</Title>
               <Divider aria-hidden="true" />
+              
               <Paragraph>
-                Record initial incident call details including caller information, incident type, location and a concise description. This intake step initiates the incident lifecycle and ensures accurate data capture for dispatch and subsequent operational tracking.
+                Record initial incident call details including caller information, incident type, location and a concise description. This intake step initiates the incident lifecycle and ensures accurate data capture for dispatch and subsequent operational tracking. Ensure the incident number is captured immediately and shown for context across call taking, dispatching, and responding resources.
               </Paragraph>
-              <EmergencyButton onClick={initiateNewIncident}>Initiate a New Emergency Incident</EmergencyButton>
-              <div style={{ marginTop: '12px' }}>
-                <InlineFormGrid>
-                  <FormGroup>
-                    <Label htmlFor="shiftOnDuty" className="required">Shift on Duty</Label>
-                    <Select
-                      id="shiftOnDuty"
-                      name="shiftOnDuty"
-                      value={formData.shiftOnDuty}
-                      onChange={handleInputChange}
-                      required
-                      disabled={!isActiveIncident}
-                    >
-                      <option value="">Select Shift...</option>
-                      <option value="Blue">Blue Shift</option>
-                      <option value="Green">Green Shift</option>
-                      <option value="Red">Red Shift</option>
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="callTaker" className="required">Call Taker</Label>
-                    <Select
-                      id="callTaker"
-                      name="callTaker"
-                      value={formData.callTaker}
-                      onChange={handleInputChange}
-                      required
-                      disabled={!isActiveIncident}
-                    >
-                      <option value="">Select Call Taker...</option>
-                      {callTakerOptions.map(opt => (
-                        <option key={opt.staff_id} value={opt.staff_id}>{opt.full_name}</option>
-                      ))}
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="incidentDate" className="required">Incident Date</Label>
-                    <Input
-                      type="date"
-                      id="incidentDate"
-                      name="incidentDate"
-                      value={formData.incidentDate}
-                      onChange={handleInputChange}
-                      required
-                      disabled
-                    />
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="incidentTime" className="required">Incident Time</Label>
-                    <Input
-                      type="time"
-                      id="incidentTime"
-                      name="incidentTime"
-                      value={formData.incidentTime}
-                      onChange={handleInputChange}
-                      required
-                      disabled
-                    />
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="incidentNumber" className="required">Incident Number</Label>
-                    <Input
-                      type="text"
-                      id="incidentNumber"
-                      name="incidentNumber"
-                      value={formData.incidentNumber}
-                      onChange={handleInputChange}
-                      required
-                      placeholder="yyyy-mm-dd hh:mm 00001"
-                      style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }}
-                      readOnly
-                    />
-                  </FormGroup>
-                </InlineFormGrid>
-              </div>
-
-              <div style={{ marginTop: '12px' }}>
-                <InlineFormGrid>
-                  <FormGroup>
-                    <Label htmlFor="callName" className="required">Caller Name</Label>
-                    <Input
-                      id="callName"
-                      name="callName"
-                      value={formData.callName}
-                      onChange={handleInputChange}
-                      required
-                      placeholder="Enter caller name"
-                      disabled={!isActiveIncident}
-                    />
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="callerNumber" className="required">Caller Number</Label>
-                    <Input
-                      type="tel"
-                      id="callerNumber"
-                      name="callerNumber"
-                      value={formData.callerNumber}
-                      onChange={handleInputChange}
-                      required
-                      placeholder="e.g., +966-XX-XXXXXXX"
-                      disabled={!isActiveIncident}
-                    />
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="secondCaller">2nd Caller</Label>
-                    <Input
-                      id="secondCaller"
-                      name="secondCaller"
-                      value={formData.secondCaller}
-                      onChange={handleInputChange}
-                      placeholder="Enter 2nd caller name"
-                      disabled={!isActiveIncident}
-                    />
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="secondCallerNumber">2nd Caller Number</Label>
-                    <Input
-                      type="tel"
-                      id="secondCallerNumber"
-                      name="secondCallerNumber"
-                      value={formData.secondCallerNumber}
-                      onChange={handleInputChange}
-                      placeholder="e.g., +966-XX-XXXXXXX"
-                      disabled={!isActiveIncident}
-                    />
-                  </FormGroup>
-                </InlineFormGrid>
-              </div>
-
-
-              <div style={{ marginTop: '12px' }}>
-                <InlineFormGrid>
-                  <FormGroup>
-                    <Label htmlFor="incidentCategory" className="required">Incident Category</Label>
-                    <Select
-                      id="incidentCategory"
-                      name="incidentCategory"
-                      value={formData.incidentCategory}
-                      onChange={handleInputChange}
-                      required
-                      disabled={!isActiveIncident}
-                    >
-                      <option value="">Select Incident Category...</option>
-                      <option value="Emergency">Emergency</option>
-                      <option value="Incident">Incident</option>
-                      <option value="Maintenance">Maintenance</option>
-                      <option value="Training">Training</option>
-                      <option value="Routine">Routine</option>
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="incidentSubCategory">Incident Sub-Category</Label>
-                    <Select
-                      id="incidentSubCategory"
-                      name="incidentSubCategory"
-                      value={formData.incidentSubCategory}
-                      onChange={handleInputChange}
-                      disabled={!isActiveIncident}
-                    >
-                      <option value="">Select Sub-Category...</option>
-                      <option value="Fire">Fire</option>
-                      <option value="Medical">Medical</option>
-                      <option value="Rescue">Rescue</option>
-                      <option value="HazMat">Hazardous Materials</option>
-                      <option value="Other">Other</option>
-                    </Select>
-                  </FormGroup>
-              </InlineFormGrid>
-              </div>
-
-              <div style={{ marginTop: '12px' }}>
-                <InlineFormGrid>
-                  <FormGroup>
-                    <Label htmlFor="streetNo">Street No</Label>
-                    <Input
-                      id="streetNo"
-                      name="streetNo"
-                      value={formData.streetNo}
-                      onChange={handleInputChange}
-                      placeholder="e.g., 123"
-                      disabled={!isActiveIncident}
-                    />
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="streetName" className="required">Street Name</Label>
-                    <Input
-                      id="streetName"
-                      name="streetName"
-                      value={formData.streetName}
-                      onChange={handleInputChange}
-                      required
-                      placeholder="e.g., King Fahd Road"
-                      disabled={!isActiveIncident}
-                    />
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="suburb" className="required">Suburb</Label>
-                    <Input
-                      id="suburb"
-                      name="suburb"
-                      value={formData.suburb}
-                      onChange={handleInputChange}
-                      required
-                      placeholder="e.g., Dammam"
-                      disabled={!isActiveIncident}
-                    />
-                  </FormGroup>
-                </InlineFormGrid>
-              </div>
             </Column>
             <ImageColumn>
               {imageLoading ? (
@@ -753,10 +541,119 @@ export const IncidentCallTaking: React.FC = () => {
               )}
             </ImageColumn>
           </FlexRow>
+          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+            <Input
+              type="text"
+              id="incidentNumber"
+              name="incidentNumber"
+              value={formData.incidentNumber}
+              onChange={handleInputChange}
+              required
+              placeholder="yyyy-mm-dd hh:mm 00001"
+              style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }}
+              readOnly
+            />
+          </div>
+          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <EmergencyButton onClick={initiateNewIncident}>Initiate a New Emergency Incident</EmergencyButton>
+          </div>
+
+          <div style={{ marginTop: '12px' }}>
+            <InlineFormGrid>
+              <FormGroup>
+                <Label htmlFor="shiftOnDuty" className="required">Shift on Duty</Label>
+                <Select id="shiftOnDuty" name="shiftOnDuty" value={formData.shiftOnDuty} onChange={handleInputChange} required disabled={!isActiveIncident}>
+                  <option value="">Select Shift...</option>
+                  <option value="Blue">Blue Shift</option>
+                  <option value="Green">Green Shift</option>
+                  <option value="Red">Red Shift</option>
+                </Select>
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="callTaker" className="required">Call Taker</Label>
+                <Select id="callTaker" name="callTaker" value={formData.callTaker} onChange={handleInputChange} required disabled={!isActiveIncident}>
+                  <option value="">Select Call Taker...</option>
+                  {callTakerOptions.map(opt => (<option key={opt.staff_id} value={opt.staff_id}>{opt.full_name}</option>))}
+                </Select>
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="incidentDate" className="required">Incident Date</Label>
+                <Input type="date" id="incidentDate" name="incidentDate" value={formData.incidentDate} onChange={handleInputChange} required disabled />
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="incidentTime" className="required">Incident Time</Label>
+                <Input type="time" id="incidentTime" name="incidentTime" value={formData.incidentTime} onChange={handleInputChange} required disabled />
+              </FormGroup>
+            </InlineFormGrid>
+          </div>
+
+          <div style={{ marginTop: '12px' }}>
+            <InlineFormGrid>
+              <FormGroup>
+                <Label htmlFor="callName" className="required">Caller Name</Label>
+                <Input id="callName" name="callName" value={formData.callName} onChange={handleInputChange} required placeholder="Enter caller name" disabled={!isActiveIncident} />
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="callerNumber" className="required">Caller Number</Label>
+                <Input type="tel" id="callerNumber" name="callerNumber" value={formData.callerNumber} onChange={handleInputChange} required placeholder="e.g., +966-XX-XXXXXXX" disabled={!isActiveIncident} />
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="secondCaller">2nd Caller</Label>
+                <Input id="secondCaller" name="secondCaller" value={formData.secondCaller} onChange={handleInputChange} placeholder="Enter 2nd caller name" disabled={!isActiveIncident} />
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="secondCallerNumber">2nd Caller Number</Label>
+                <Input type="tel" id="secondCallerNumber" name="secondCallerNumber" value={formData.secondCallerNumber} onChange={handleInputChange} placeholder="e.g., +966-XX-XXXXXXX" disabled={!isActiveIncident} />
+              </FormGroup>
+            </InlineFormGrid>
+          </div>
+
+          <div style={{ marginTop: '12px' }}>
+            <InlineFormGrid>
+              <FormGroup>
+                <Label htmlFor="incidentCategory" className="required">Incident Category</Label>
+                <Select id="incidentCategory" name="incidentCategory" value={formData.incidentCategory} onChange={handleInputChange} required disabled={!isActiveIncident}>
+                  <option value="">Select Incident Category...</option>
+                  <option value="Emergency">Emergency</option>
+                  <option value="Incident">Incident</option>
+                  <option value="Maintenance">Maintenance</option>
+                  <option value="Training">Training</option>
+                  <option value="Routine">Routine</option>
+                </Select>
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="incidentSubCategory">Incident Sub-Category</Label>
+                <Select id="incidentSubCategory" name="incidentSubCategory" value={formData.incidentSubCategory} onChange={handleInputChange} disabled={!isActiveIncident}>
+                  <option value="">Select Sub-Category...</option>
+                  <option value="Fire">Fire</option>
+                  <option value="Medical">Medical</option>
+                  <option value="Rescue">Rescue</option>
+                  <option value="HazMat">Hazardous Materials</option>
+                  <option value="Other">Other</option>
+                </Select>
+              </FormGroup>
+            </InlineFormGrid>
+          </div>
+
+          <div style={{ marginTop: '12px' }}>
+            <InlineFormGrid>
+              <FormGroup>
+                <Label htmlFor="streetNo">Street No</Label>
+                <Input id="streetNo" name="streetNo" value={formData.streetNo} onChange={handleInputChange} placeholder="e.g., 123" disabled={!isActiveIncident} />
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="streetName" className="required">Street Name</Label>
+                <Input id="streetName" name="streetName" value={formData.streetName} onChange={handleInputChange} required placeholder="e.g., King Fahd Road" disabled={!isActiveIncident} />
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="suburb" className="required">Suburb</Label>
+                <Input id="suburb" name="suburb" value={formData.suburb} onChange={handleInputChange} required placeholder="e.g., Dammam" disabled={!isActiveIncident} />
+              </FormGroup>
+            </InlineFormGrid>
+          </div>
+          
         </div>
       </Section>
-
-      
       <ButtonRow>
         <CancelButton onClick={cancelIncident} disabled={!isActiveIncident}>Cancel Incident</CancelButton>
         <DispatchButton onClick={dispatchIncident} disabled={!isActiveIncident}>Dispatch Incident</DispatchButton>

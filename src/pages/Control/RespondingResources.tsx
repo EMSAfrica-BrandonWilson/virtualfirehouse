@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { usePageImage } from '../../hooks/usePageImage';
 import { supabase } from '../../lib/supabase';
@@ -97,6 +98,14 @@ const FormGroup = styled.div`
   width: 100%;
 `;
 
+const FormGroupWide = styled(FormGroup)`
+  grid-column: span 2;
+`;
+
+const FormGroupMedium = styled(FormGroup)`
+  grid-column: span 2;
+`;
+
 const Input = styled.input`
   width: 100%;
   padding: 8px;
@@ -183,14 +192,14 @@ const DispatchButton = styled.button`
 
 export const RespondingResources: React.FC = () => {
   const { imageUrl, loading: imageLoading } = usePageImage('responding-resources', '/images/ControlRoom.png');
+  const navigate = useNavigate();
   const [isActive, setIsActive] = useState(false);
-  const [dispatcherOptions, setDispatcherOptions] = useState<{ staff_id: string; full_name: string }[]>([]);
   const [stationOptions, setStationOptions] = useState<{ id: string; name: string }[]>([]);
-  const [vehicleOptions, setVehicleOptions] = useState<{ value: string; label: string }[]>([]);
+  const [vehicleOptions, setVehicleOptions] = useState<{ value: string; label: string; station: string }[]>([]);
+  const [responding, setResponding] = useState<{ station_id: string; station_name: string; vehicle_value: string; vehicle_label: string; time?: string }[]>([]);
   const focusRef = useRef<HTMLInputElement | null>(null);
 
   const [form, setForm] = useState(() => ({
-    dispatcher: localStorage.getItem('vfh_dispatcher_id') || '',
     incidentNumber: localStorage.getItem('vfh_current_incident_number') || '',
     assignedStation: '',
     assignedVehicle: '',
@@ -206,45 +215,66 @@ export const RespondingResources: React.FC = () => {
     secondaryResource3: ''
   }));
 
-  useEffect(() => {
-    const loadDispatchers = async () => {
-      const { data } = await supabase
-        .from('02_admin_staff_1_registration')
-        .select('staff_id, first_name, middle_name, last_name, rank_id')
-        .in('rank_id', [6, '6'])
-        .order('first_name', { ascending: true })
-        .order('last_name', { ascending: true });
-      const rows = Array.isArray(data) ? data : [];
-      const options = rows.map((r: any) => ({
-        staff_id: String(r?.staff_id ?? ''),
-        full_name: [r?.first_name, r?.middle_name, r?.last_name].filter(Boolean).join(' ').trim()
-      })).filter(o => o.staff_id && o.full_name);
-      setDispatcherOptions(options);
-    };
-    loadDispatchers();
-  }, []);
+  
+  const filteredVehicleOptions = React.useMemo(() => {
+    const selectedStation = stationOptions.find(s => s.id === form.assignedStation)?.name || '';
+    if (!selectedStation) return vehicleOptions;
+    const key = selectedStation.toString().trim().toLowerCase();
+    return vehicleOptions.filter(v => (v.station || '').toString().trim().toLowerCase() === key);
+  }, [vehicleOptions, stationOptions, form.assignedStation]);
+
+  const storageVehiclesKey = (inc: string) => `vfh_responding_vehicles:${inc}`;
+
+  const getTimeStr = () => {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
 
   useEffect(() => {
-    const loadStations = async () => {
-      let defaultDeptId: number | null = null;
-      const { data: deptData } = await supabase
-        .from('02_admin_register_fd1_departments')
-        .select('id, is_default')
-        .eq('is_default', true)
-        .limit(1);
-      if (Array.isArray(deptData) && deptData.length > 0) defaultDeptId = Number(deptData[0].id);
-
-      let query = supabase
-        .from('02_admin_register_fd3_stations')
-        .select('id, fire_station_name')
-        .order('fire_station_name', { ascending: true });
-      if (defaultDeptId) query = query.eq('department_id', defaultDeptId);
-      const { data } = await query;
-      const rows = Array.isArray(data) ? data : [];
-      setStationOptions(rows.map((r: any) => ({ id: String(r.id), name: r.fire_station_name })));
+    const loadDispatchedStations = async () => {
+      const inc = localStorage.getItem('vfh_current_incident_number') || form.incidentNumber || '';
+      if (!inc) { setStationOptions([]); return; }
+      try {
+        const saved = localStorage.getItem(`vfh_dispatched_stations:${inc}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const opts = parsed.map((d: any) => ({ id: String(d.id || ''), name: String(d.name || '') })).filter(o => o.id && o.name);
+            setStationOptions(opts);
+            return;
+          }
+        }
+      } catch {}
+      try {
+        const { data } = await supabase
+          .from('03_ecc_03_02_Incident_Call_Dispatching')
+          .select('dispatched_stations')
+          .eq('incident_number', inc)
+          .limit(1);
+        const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+        const list = row && Array.isArray(row.dispatched_stations) ? row.dispatched_stations : [];
+        const opts = list.map((x: any) => ({ id: String(x.station_id || ''), name: String(x.station_name || '') })).filter(o => o.id && o.name);
+        setStationOptions(opts);
+      } catch {
+        setStationOptions([]);
+      }
     };
-    loadStations();
-  }, []);
+    loadDispatchedStations();
+  }, [form.incidentNumber]);
+
+  useEffect(() => {
+    const inc = localStorage.getItem('vfh_current_incident_number') || form.incidentNumber || '';
+    if (!inc) return;
+    try {
+      const saved = localStorage.getItem(storageVehiclesKey(inc));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setResponding(parsed);
+      }
+    } catch {}
+  }, [form.incidentNumber]);
 
   useEffect(() => {
     const loadInServiceVehicles = async () => {
@@ -252,7 +282,7 @@ export const RespondingResources: React.FC = () => {
         const today = new Date().toISOString().split('T')[0];
         const { data } = await supabase
           .from('03_ecc_02_duty_roster_01_station_assignments')
-          .select('call_sign, vehicle_type, status')
+          .select('call_sign, vehicle_type, status, station_assignment')
           .eq('assignment_date', today)
           .eq('status', 'In Service')
           .order('call_sign', { ascending: true });
@@ -263,7 +293,8 @@ export const RespondingResources: React.FC = () => {
         });
         setVehicleOptions(deduped.map((r: any) => ({
           value: String(r.call_sign || ''),
-          label: `${r.call_sign || ''} ${r.vehicle_type || ''}`.trim()
+          label: `${r.call_sign || ''} ${r.vehicle_type || ''}`.trim(),
+          station: String(r.station_assignment || '')
         })));
       } catch {
         setVehicleOptions([]);
@@ -279,8 +310,11 @@ export const RespondingResources: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    if (name === 'dispatcher') localStorage.setItem('vfh_dispatcher_id', value);
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm(prev => {
+      const next = { ...prev, [name]: value } as any;
+      if (name === 'assignedStation') next.assignedVehicle = '';
+      return next;
+    });
   };
 
   const getSelectedStationIds = (): Set<string> => {
@@ -292,17 +326,38 @@ export const RespondingResources: React.FC = () => {
   };
 
   const getSelectedVehicleValues = (): Set<string> => {
-    return new Set([
-      form.assignedVehicle,
-      form.primaryResource,
-      form.secondaryResource,
-      form.assignedVehicle2,
-      form.primaryResource2,
-      form.secondaryResource2,
-      form.assignedVehicle3,
-      form.primaryResource3,
-      form.secondaryResource3
-    ].filter(Boolean) as string[]);
+    const existing = responding.map(r => r.vehicle_value);
+    return new Set([form.assignedVehicle, ...existing].filter(Boolean) as string[]);
+  };
+
+  const addRespondingVehicle = () => {
+    const inc = localStorage.getItem('vfh_current_incident_number') || form.incidentNumber || '';
+    if (!inc || !form.assignedStation || !form.assignedVehicle) return;
+    const station = stationOptions.find(s => s.id === form.assignedStation);
+    const vehicle = vehicleOptions.find(v => v.value === form.assignedVehicle);
+    if (!station || !vehicle) return;
+    const exists = responding.some(r => r.vehicle_value === vehicle.value);
+    if (exists) return;
+    const entry = {
+      station_id: station.id,
+      station_name: station.name,
+      vehicle_value: vehicle.value,
+      vehicle_label: vehicle.label,
+      time: getTimeStr()
+    };
+    const next = [...responding, entry];
+    setResponding(next);
+    try { localStorage.setItem(storageVehiclesKey(inc), JSON.stringify(next)); } catch {}
+    setForm(prev => ({ ...prev, assignedVehicle: '' }));
+  };
+
+  const removeRespondingVehicle = (vehicleValue: string) => {
+    const inc = localStorage.getItem('vfh_current_incident_number') || form.incidentNumber || '';
+    const next = responding.filter(r => r.vehicle_value !== vehicleValue);
+    setResponding(next);
+    if (inc) {
+      try { localStorage.setItem(storageVehiclesKey(inc), JSON.stringify(next)); } catch {}
+    }
   };
 
   const onInitiate = () => {
@@ -320,7 +375,26 @@ export const RespondingResources: React.FC = () => {
     setIsActive(false);
   };
 
-  const onDispatch = () => {};
+  const onDispatch = async () => {
+    const inc = localStorage.getItem('vfh_current_incident_number') || form.incidentNumber || '';
+    if (!inc || responding.length === 0) return;
+    const payload = {
+      incident_number: inc,
+      responding_vehicles: responding
+    } as any;
+    try {
+      const { error } = await supabase
+        .from('03_ecc_03_03_Responding_Resources')
+        .upsert([payload], { onConflict: 'incident_number' });
+      if (error) {
+        alert(`Failed to save responding resources: ${error.message}`);
+        return;
+      }
+      navigate('/control/emergency-incident-logging/narrative');
+    } catch (e: any) {
+      alert(`Unexpected error saving resources: ${e?.message || e}`);
+    }
+  };
 
   return (
     <MainContent aria-label="Main content">
@@ -330,43 +404,20 @@ export const RespondingResources: React.FC = () => {
             <Column style={{ flex: '1', minWidth: '0' }}>
               <Title id="resources-title">Responding Resources</Title>
               <Divider aria-hidden="true" />
+              
               <Paragraph>
                 Allocate responding stations and vehicles for the active incident. Initiate resources to enable selection fields and enforce unique assignments across dropdowns.
               </Paragraph>
-              <PrimaryButton onClick={onInitiate}>Initiate Resources</PrimaryButton>
-
-              <div style={{ marginTop: '12px' }}>
-                <InlineFormGrid>
-                  <FormGroup>
-                    <Label htmlFor="dispatcher" className="required">Dispatcher</Label>
-                    <Select id="dispatcher" name="dispatcher" value={form.dispatcher} onChange={handleChange} required disabled={!isActive}>
-                      <option value="">Select Dispatcher...</option>
-                      {dispatcherOptions.map(opt => (
-                        <option key={opt.staff_id} value={opt.staff_id}>{opt.full_name}</option>
-                      ))}
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="incidentNumber" className="required">Incident Number</Label>
-                    <Input
-                      type="text"
-                      id="incidentNumber"
-                      name="incidentNumber"
-                      value={form.incidentNumber}
-                      onChange={handleChange}
-                      required
-                      placeholder="yyyy-mm-dd hh:mm 00001"
-                      style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }}
-                      readOnly
-                    />
-                  </FormGroup>
-                </InlineFormGrid>
+              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <PrimaryButton onClick={onInitiate}>Initiate Resources</PrimaryButton>
               </div>
 
+              
+
               <div style={{ marginTop: '12px' }}>
                 <InlineFormGrid>
-                  <FormGroup>
-                    <Label htmlFor="assignedStation">Responding Station 1</Label>
+                  <FormGroupWide>
+                    <Label htmlFor="assignedStation">Responding Fire Station/s</Label>
                     <Select id="assignedStation" name="assignedStation" value={form.assignedStation} onChange={handleChange} disabled={!isActive}>
                       <option value="">Select a fire station...</option>
                       {stationOptions.map(st => {
@@ -377,161 +428,43 @@ export const RespondingResources: React.FC = () => {
                         );
                       })}
                     </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="assignedVehicle">First Response</Label>
+                  </FormGroupWide>
+                  <FormGroupMedium>
+                    <Label htmlFor="assignedVehicle">Responding Fire Vehicle/s</Label>
                     <Select id="assignedVehicle" name="assignedVehicle" value={form.assignedVehicle} onChange={handleChange} disabled={!isActive}>
                       <option value="">Select vehicle...</option>
-                      {vehicleOptions.map(v => {
-                        const selected = getSelectedVehicleValues();
-                        const isDisabled = selected.has(v.value) && form.assignedVehicle !== v.value;
-                        return (
-                          <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
-                        );
+                      {filteredVehicleOptions.map(v => {
+                          const selected = getSelectedVehicleValues();
+                          const isDisabled = selected.has(v.value) && form.assignedVehicle !== v.value;
+                          return (
+                            <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
+                          );
                       })}
                     </Select>
-                  </FormGroup>
+                  </FormGroupMedium>
                   <FormGroup>
-                    <Label htmlFor="primaryResource">Second Response</Label>
-                    <Select id="primaryResource" name="primaryResource" value={form.primaryResource} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select vehicle...</option>
-                      {vehicleOptions.map(v => {
-                        const selected = getSelectedVehicleValues();
-                        const isDisabled = selected.has(v.value) && form.primaryResource !== v.value;
-                        return (
-                          <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
-                        );
-                      })}
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="secondaryResource">Third Response</Label>
-                    <Select id="secondaryResource" name="secondaryResource" value={form.secondaryResource} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select vehicle...</option>
-                      {vehicleOptions.map(v => {
-                        const selected = getSelectedVehicleValues();
-                        const isDisabled = selected.has(v.value) && form.secondaryResource !== v.value;
-                        return (
-                          <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
-                        );
-                      })}
-                    </Select>
+                    <Label>&nbsp;</Label>
+                    <DispatchButton type="button" onClick={addRespondingVehicle} disabled={!isActive || !form.assignedStation || !form.assignedVehicle}>Add Responding Vehicle</DispatchButton>
                   </FormGroup>
                 </InlineFormGrid>
               </div>
 
-              <div style={{ marginTop: '12px' }}>
-                <InlineFormGrid>
-                  <FormGroup>
-                    <Label htmlFor="assignedStation2">Responding Station 2</Label>
-                    <Select id="assignedStation2" name="assignedStation2" value={form.assignedStation2} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select a fire station...</option>
-                      {stationOptions.map(st => {
-                        const selected = getSelectedStationIds();
-                        const isDisabled = selected.has(st.id) && form.assignedStation2 !== st.id;
-                        return (
-                          <option key={st.id} value={st.id} disabled={isDisabled}>{st.name}</option>
-                        );
-                      })}
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="assignedVehicle2">First Response</Label>
-                    <Select id="assignedVehicle2" name="assignedVehicle2" value={form.assignedVehicle2} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select vehicle...</option>
-                      {vehicleOptions.map(v => {
-                        const selected = getSelectedVehicleValues();
-                        const isDisabled = selected.has(v.value) && form.assignedVehicle2 !== v.value;
-                        return (
-                          <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
-                        );
-                      })}
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="primaryResource2">Second Response</Label>
-                    <Select id="primaryResource2" name="primaryResource2" value={form.primaryResource2} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select vehicle...</option>
-                      {vehicleOptions.map(v => {
-                        const selected = getSelectedVehicleValues();
-                        const isDisabled = selected.has(v.value) && form.primaryResource2 !== v.value;
-                        return (
-                          <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
-                        );
-                      })}
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="secondaryResource2">Third Response</Label>
-                    <Select id="secondaryResource2" name="secondaryResource2" value={form.secondaryResource2} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select vehicle...</option>
-                      {vehicleOptions.map(v => {
-                        const selected = getSelectedVehicleValues();
-                        const isDisabled = selected.has(v.value) && form.secondaryResource2 !== v.value;
-                        return (
-                          <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
-                        );
-                      })}
-                    </Select>
-                  </FormGroup>
-                </InlineFormGrid>
-              </div>
-
-              <div style={{ marginTop: '12px' }}>
-                <InlineFormGrid>
-                  <FormGroup>
-                    <Label htmlFor="assignedStation3">Responding Station 3</Label>
-                    <Select id="assignedStation3" name="assignedStation3" value={form.assignedStation3} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select a fire station...</option>
-                      {stationOptions.map(st => {
-                        const selected = getSelectedStationIds();
-                        const isDisabled = selected.has(st.id) && form.assignedStation3 !== st.id;
-                        return (
-                          <option key={st.id} value={st.id} disabled={isDisabled}>{st.name}</option>
-                        );
-                      })}
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="assignedVehicle3">First Response</Label>
-                    <Select id="assignedVehicle3" name="assignedVehicle3" value={form.assignedVehicle3} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select vehicle...</option>
-                      {vehicleOptions.map(v => {
-                        const selected = getSelectedVehicleValues();
-                        const isDisabled = selected.has(v.value) && form.assignedVehicle3 !== v.value;
-                        return (
-                          <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
-                        );
-                      })}
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="primaryResource3">Second Response</Label>
-                    <Select id="primaryResource3" name="primaryResource3" value={form.primaryResource3} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select vehicle...</option>
-                      {vehicleOptions.map(v => {
-                        const selected = getSelectedVehicleValues();
-                        const isDisabled = selected.has(v.value) && form.primaryResource3 !== v.value;
-                        return (
-                          <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
-                        );
-                      })}
-                    </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label htmlFor="secondaryResource3">Third Response</Label>
-                    <Select id="secondaryResource3" name="secondaryResource3" value={form.secondaryResource3} onChange={handleChange} disabled={!isActive}>
-                      <option value="">Select vehicle...</option>
-                      {vehicleOptions.map(v => {
-                        const selected = getSelectedVehicleValues();
-                        const isDisabled = selected.has(v.value) && form.secondaryResource3 !== v.value;
-                        return (
-                          <option key={v.value} value={v.value} disabled={isDisabled}>{v.label}</option>
-                        );
-                      })}
-                    </Select>
-                  </FormGroup>
-                </InlineFormGrid>
+              <div style={{ marginTop: '16px' }}>
+                <Section>
+                  <h3 style={{ color: '#1177BB', margin: '0 0 10px' }}>Responding Vehicles</h3>
+                  {responding.length === 0 ? (
+                    <p style={{ color: '#666' }}>No responding vehicles added yet.</p>
+                  ) : (
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                      {responding.map(rv => (
+                        <li key={rv.vehicle_value} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #eee' }}>
+                          <span><strong>{rv.vehicle_label}</strong> — from {rv.station_name}{rv.time ? ` at ${rv.time}` : ''}</span>
+                          <CancelButton type="button" onClick={() => removeRespondingVehicle(rv.vehicle_value)} disabled={!isActive}>Remove</CancelButton>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Section>
               </div>
 
             </Column>
@@ -545,14 +478,25 @@ export const RespondingResources: React.FC = () => {
               )}
             </ImageColumn>
           </FlexRow>
-        </div>
+          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+            <Input
+              type="text"
+              id="incidentNumber"
+              name="incidentNumber"
+              value={form.incidentNumber}
+              onChange={handleChange}
+              required
+              placeholder="yyyy-mm-dd hh:mm 00001"
+              style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }}
+              readOnly
+            />
+          </div>
+          </div>
       </Section>
 
       <ButtonRow>
-        <CancelButton onClick={onCancel} disabled={!isActive}>Cancel</CancelButton>
-        <DispatchButton onClick={onDispatch} disabled={!isActive}>Save Resources</DispatchButton>
+        <DispatchButton onClick={onDispatch} disabled={!isActive || responding.length === 0}>Save & Continue to Incident Narrative</DispatchButton>
       </ButtonRow>
     </MainContent>
   );
 };
-
