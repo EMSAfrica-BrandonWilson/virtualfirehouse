@@ -1,12 +1,8 @@
 {
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
-  ],
-  "installCommand": "npm ci",
+  "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "other",
-  "env": {
-    "ENABLE_EXPERIMENTAL_COREPACK": "1"
-  }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
