@@ -662,14 +662,32 @@ export const IncidentCallDispatching: React.FC = () => {
               {dispatched.length === 0 ? (
                 <p style={{ color: '#666' }}>No stations dispatched yet.</p>
               ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {dispatched.map(d => (
-                  <li key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '12px', padding: '8px', borderBottom: '1px solid #eee' }}>
-                    <CancelButton type="button" onClick={() => removeDispatch(d.id)} disabled={!isActive}>Remove</CancelButton>
-                    <span><strong>{d.name}</strong>{(d as any).vehicle ? ` — ${(d as any).vehicle}` : ''} — dispatched at {d.time}</span>
-                  </li>
-                ))}
-              </ul>
+                <ul style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', padding: 0, margin: 0 }}>
+                  {dispatched.map(d => (
+                    <li
+                      key={d.id}
+                      style={{
+                        listStyle: 'none',
+                        padding: '8px',
+                        border: '1px solid #eee',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '12px'
+                      }}
+                    >
+                      <CancelButton type="button" onClick={() => removeDispatch(d.id)} disabled={!isActive}>Remove</CancelButton>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{d.name}</div>
+                        <div style={{ color: '#555' }}>
+                          {(d as any).vehicle ? `Vehicle: ${(d as any).vehicle}` : ''}
+                          {((d as any).vehicle && d.time) ? ' — ' : ''}
+                          {d.time ? `Dispatched at ${d.time}` : ''}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
 
             </Section>

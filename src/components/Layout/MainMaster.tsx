@@ -56,14 +56,7 @@ const getLeftMenuItems = (currentPath: string, isSystemAdmin: boolean = false, u
     const pdfSourceSection = sessionStorage.getItem('pdf_source_section');
     const pdfSourcePath = sessionStorage.getItem('pdf_source_path');
     
-    // Debug: Log what we're getting from sessionStorage
-    console.log('📋 PDF Viewer Menu Generation Debug:');
-    console.log('- currentPath:', currentPath);
-    console.log('- pdfSourceSection:', pdfSourceSection);
-    console.log('- pdfSourcePath:', pdfSourcePath);
-    
     if (pdfSourceSection && pdfSourcePath) {
-      console.log('- Using source path:', pdfSourcePath, 'to generate menu items');
       // Use the stored source path to determine menu items for precise sub-menus
       return getLeftMenuItems(pdfSourcePath, isSystemAdmin, userFireStations, userFireStationMenuItems);
     }
@@ -331,9 +324,8 @@ const getLeftMenuItems = (currentPath: string, isSystemAdmin: boolean = false, u
         { name: 'weather-information', path: '/control/emergency-incident-logging/weather', text: 'Weather Information' },
         { name: 'multi-media-files', path: '/control/emergency-incident-logging/media', text: 'Multi-Media Files' },
         { name: 'record-lock-status', path: '/control/emergency-incident-logging/lock-status', text: 'Record Lock Status' },
-        { name: 'record-modification-history', path: '/control/emergency-incident-logging/history', text: 'Record Modification History' },
         { name: 'incident-report', path: '/control/emergency-incident-logging/report', text: 'Incident Report' },
-        { name: 'test-page', path: '/control/emergency-incident-logging/test', text: 'Test page' },
+        { name: 'record-modification-history', path: '/control/emergency-incident-logging/history', text: 'Record Modification History' },
       ];
     }
     

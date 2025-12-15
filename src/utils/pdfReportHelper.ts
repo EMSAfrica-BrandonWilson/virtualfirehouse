@@ -449,13 +449,13 @@ export interface VFHA4SetupReturn extends VFHStandardPDFSetupResult {
 }
 
 export const setupVFH_A4_P = ({ data, logoBase64 }: VFHA4SetupOptions): VFHA4SetupReturn => {
-  const doc = new jsPDF('portrait');
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const setup = setupVFHStandardPDF({ doc, logoBase64, data });
   return { doc, ...setup };
 };
 
 export const setupVFH_A4_L = ({ data, logoBase64 }: VFHA4SetupOptions): VFHA4SetupReturn => {
-  const doc = new jsPDF('landscape');
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const setup = setupVFHStandardPDF({ doc, logoBase64, data });
   return { doc, ...setup };
 };

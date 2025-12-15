@@ -59,7 +59,6 @@ import { IncidentMultiMediaFiles } from './pages/Control/IncidentMultiMediaFiles
 import { IncidentRecordModificationHistory } from './pages/Control/IncidentRecordModificationHistory';
 import { IncidentRecordLockStatus } from './pages/Control/IncidentRecordLockStatus';
 import { IncidentReport } from './pages/Control/IncidentReport';
-import { TestPage } from './pages/Control/TestPage';
 const EmergencyIncidentReports = lazy(() => import('./pages/Control/EmergencyIncidentReports').then(m => ({ default: m.EmergencyIncidentReports })));
 import { ECCChecklists } from './pages/Control/ECCChecklists';
 import { ApplianceBayDoors } from './pages/Control/Checklists/ApplianceBayDoors';
@@ -1001,16 +1000,12 @@ function App() {
               } />
               <Route path="/control/emergency-incident-logging/record-lock-status" element={
                 <MainMaster>
-                  <ProtectedRoute>
-                    <IncidentRecordLockStatus />
-                  </ProtectedRoute>
+                  <IncidentRecordLockStatus />
                 </MainMaster>
               } />
               <Route path="/control/emergency-incident-logging/lock-status" element={
                 <MainMaster>
-                  <ProtectedRoute>
-                    <IncidentRecordLockStatus />
-                  </ProtectedRoute>
+                  <IncidentRecordLockStatus />
                 </MainMaster>
               } />
               <Route path="/control/emergency-incident-logging/incident-report" element={
@@ -1024,14 +1019,6 @@ function App() {
                 <MainMaster>
                   <ProtectedRoute>
                     <IncidentReport />
-                  </ProtectedRoute>
-                </MainMaster>
-              } />
-              
-              <Route path="/control/emergency-incident-logging/test" element={
-                <MainMaster>
-                  <ProtectedRoute>
-                    <TestPage />
                   </ProtectedRoute>
                 </MainMaster>
               } />

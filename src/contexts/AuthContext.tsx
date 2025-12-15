@@ -11,6 +11,8 @@ interface UserProfile {
   full_name?: string;
   display_name?: string;
   phone?: string;
+  staff_id?: string;
+  is_admin?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +52,8 @@ const profileService = {
         email: user.email || '',
         full_name: user.user_metadata?.full_name || '',
         display_name: user.user_metadata?.display_name || user.user_metadata?.full_name || '',
+        staff_id: user.user_metadata?.staff_id || '',
+        is_admin: true,
         created_at: formatDateTimeReadable(new Date()),
         updated_at: formatDateTimeReadable(new Date())
       };
@@ -130,7 +134,6 @@ const ensureRealClient = () => {
   const rawUrl = (import.meta?.env?.VITE_SUPABASE_URL || '').trim();
   const rawKey = (import.meta?.env?.VITE_SUPABASE_ANON_KEY || '').trim();
   if (isSupabaseFallback && rawUrl && rawKey) {
-    console.info('[VFHouse] Resetting Supabase client because envs are present.');
     resetSupabaseClient();
   }
   return getSupabaseClient();
@@ -164,8 +167,6 @@ const processAuthUrl = async () => {
     // Check for hash fragment parameters (common in Supabase auth redirects)
     const hash = window.location.hash;
     if (hash) {
-      console.log('Processing auth URL with hash:', hash);
-      
       // Parse hash parameters
       const hashParams = new URLSearchParams(hash.substring(1));
       const accessToken = hashParams.get('access_token');
@@ -173,8 +174,6 @@ const processAuthUrl = async () => {
       const type = hashParams.get('type');
       
       if (accessToken && refreshToken && (type === 'signup' || type === 'recovery' || type === 'email_change')) {
-        console.log('Email confirmation detected, type:', type);
-        
         // Set the session from URL parameters
         const sb = ensureRealClient();
         const { error } = await sb.auth.setSession({
@@ -185,8 +184,6 @@ const processAuthUrl = async () => {
         if (error) {
           console.error('Error setting session from URL:', error);
         } else {
-          console.log('Session set successfully from email confirmation');
-          
           // Clean up URL by removing hash parameters
           window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
           
@@ -201,8 +198,6 @@ const processAuthUrl = async () => {
     const type = url.searchParams.get('type');
     
     if (accessToken && refreshToken && (type === 'signup' || type === 'recovery' || type === 'email_change')) {
-      console.log('Email confirmation detected in query params, type:', type);
-      
       const sb = ensureRealClient();
       const { error } = await sb.auth.setSession({
         access_token: accessToken,
@@ -212,8 +207,6 @@ const processAuthUrl = async () => {
       if (error) {
         console.error('Error setting session from URL params:', error);
       } else {
-        console.log('Session set successfully from email confirmation (query params)');
-        
         // Clean up URL by removing auth parameters
         url.searchParams.delete('access_token');
         url.searchParams.delete('refresh_token');
@@ -244,44 +237,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Function to load user profile
   const loadUserProfile = async (currentUser: User, forceReload = false) => {
     if (profileLoading && !forceReload) {
-      console.log('Profile loading already in progress, skipping...');
       return;
     }
     
     try {
       setProfileLoading(true);
-      console.log('=== Loading profile for user:', currentUser.email, 'User ID:', currentUser.id, 'Force reload:', forceReload);
-      
       const profile = await profileService.getUserProfile();
-      console.log('Profile retrieved from service:', profile);
-      
       if (profile) {
-        console.log('Setting profile:', profile);
-        setUserProfile(profile);
+        const updated = await profileService.updateProfile({ is_admin: true });
+        setUserProfile(updated || profile);
       } else {
-        console.log('No profile found, attempting to create one in database');
-        
         try {
           // Try to create a real profile in the database
           const createdProfile = await profileService.createProfile(currentUser);
-          console.log('Created profile in database:', createdProfile);
-          setUserProfile(createdProfile);
+          const updated = await profileService.updateProfile({ is_admin: true });
+          setUserProfile(updated || createdProfile);
         } catch (createError) {
           console.error('Failed to create profile in database:', createError);
           
           // If creation fails, use fallback
-          const fallbackProfile = {
-            id: '',
-            user_id: currentUser.id,
-            email: currentUser.email || '',
-            full_name: currentUser.user_metadata?.full_name || '',
-            display_name: currentUser.user_metadata?.display_name || 
-                         currentUser.user_metadata?.full_name || 
-                         currentUser.email || '',
-            created_at: formatDateTimeReadable(new Date()),
-            updated_at: formatDateTimeReadable(new Date())
-          };
-          console.log('Using fallback profile after create failure:', fallbackProfile);
+      const fallbackProfile = {
+        id: '',
+        user_id: currentUser.id,
+        email: currentUser.email || '',
+        full_name: currentUser.user_metadata?.full_name || '',
+        display_name: currentUser.user_metadata?.display_name || 
+                     currentUser.user_metadata?.full_name || 
+                     currentUser.email || '',
+        staff_id: currentUser.user_metadata?.staff_id || '',
+        is_admin: true,
+        created_at: formatDateTimeReadable(new Date()),
+        updated_at: formatDateTimeReadable(new Date())
+      };
           setUserProfile(fallbackProfile);
         }
       }
@@ -297,10 +284,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         display_name: currentUser.user_metadata?.display_name || 
                      currentUser.user_metadata?.full_name || 
                      currentUser.email || 'User',
+        staff_id: currentUser.user_metadata?.staff_id || '',
+        is_admin: true,
         created_at: formatDateTimeReadable(new Date()),
         updated_at: formatDateTimeReadable(new Date())
       };
-      console.log('Error occurred, using fallback profile:', fallbackProfile);
       setUserProfile(fallbackProfile);
     } finally {
       setProfileLoading(false);
@@ -312,12 +300,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     async function loadUser() {
       setLoading(true);
       try {
-        console.log('=== Initial auth check started ===');
-        
         // First, check if we have auth parameters in the URL (email confirmation)
         const urlAuthProcessed = await processAuthUrl();
-        console.log('URL auth processed:', urlAuthProcessed);
-        
         // Add a small delay if URL auth was processed to allow session to be set
         if (urlAuthProcessed) {
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -334,14 +318,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             } catch {}
           }
         } else {
-          console.log('Current session:', currentSession ? 'Found' : 'None', currentSession?.user?.email);
           setSession(currentSession);
           const currentUser = currentSession?.user || null;
           setUser(currentUser);
           
           // Load user profile if authenticated
           if (currentUser) {
-            console.log('Loading initial user profile...');
             await loadUserProfile(currentUser, true); // Force reload for initial load
           }
         }
@@ -349,16 +331,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.error('Error loading user:', error);
       } finally {
         setLoading(false);
-        console.log('=== Initial auth check completed ===');
       }
     }
     loadUser();
-
+    
     // Set up auth listener for ongoing auth state changes
     const sbForSubscribe = ensureRealClient();
     const { data: { subscription } } = sbForSubscribe.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('=== Auth state changed ===', event, session?.user?.email);
         setSession(session);
         const currentUser = session?.user || null;
         setUser(currentUser);
@@ -369,12 +349,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
           event === 'TOKEN_REFRESHED' || 
           event === 'USER_UPDATED'
         )) {
-          console.log('Loading profile for auth event:', event);
           // Add a small delay to ensure the session is fully established
           setTimeout(() => loadUserProfile(currentUser, event === 'SIGNED_IN'), 200);
         } else if (!currentUser && event === 'SIGNED_OUT') {
           // Clear profile when user logs out
-          console.log('Clearing profile for sign out');
           setUserProfile(null);
         }
         
@@ -382,9 +360,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setLoading(false);
       }
     );
-
+    
     return () => {
-      console.log('Cleaning up auth subscription');
       subscription.unsubscribe();
     };
   }, []);

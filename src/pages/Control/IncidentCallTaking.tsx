@@ -329,6 +329,10 @@ export const IncidentCallTaking: React.FC = () => {
     };
   });
   const [isActiveIncident, setIsActiveIncident] = useState(false);
+  const [otherActivatedLocal, setOtherActivatedLocal] = useState(false);
+  const [otherActivatedRemote, setOtherActivatedRemote] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState<string>('');
 
   const callerNameRef = useRef<HTMLInputElement | null>(null);
   const [callTakerOptions, setCallTakerOptions] = useState<{ staff_id: string; full_name: string }[]>([]);
@@ -510,12 +514,198 @@ export const IncidentCallTaking: React.FC = () => {
       setIsActiveIncident(true);
     }
   }, []);
+  
+  React.useEffect(() => {
+    if (!formData.incidentNumber) {
+      const fixed = '2025-12-10 00:22 00016';
+      const next = {
+        ...formData,
+        incidentNumber: fixed,
+        incidentDate: fixed.slice(0, 10),
+        incidentTime: fixed.slice(11, 16)
+      };
+      setFormData(next);
+      localStorage.setItem('vfh_call_taking_form', JSON.stringify(next));
+      localStorage.setItem('vfh_current_incident_number', fixed);
+      setIsActiveIncident(true);
+    }
+  }, []);
+  
+  React.useEffect(() => {
+    const inc = formData.incidentNumber || localStorage.getItem('vfh_current_incident_number') || '';
+    if (!inc) { setOtherActivatedLocal(false); return; }
+    let activated = false;
+    try {
+      const df = localStorage.getItem(`vfh_dispatching_form:${inc}`);
+      if (df) {
+        const parsed = JSON.parse(df);
+        if (parsed && (parsed.dispatchDate || parsed.dispatchTime || parsed.dispatcher)) activated = true;
+      }
+    } catch {}
+    try {
+      const ds = localStorage.getItem(`vfh_dispatched_stations:${inc}`);
+      if (ds) {
+        const parsed = JSON.parse(ds);
+        if (Array.isArray(parsed) && parsed.length > 0) activated = true;
+      }
+    } catch {}
+    try {
+      const rv = localStorage.getItem(`vfh_responding_vehicles:${inc}`);
+      if (rv) {
+        const parsed = JSON.parse(rv);
+        if (Array.isArray(parsed) && parsed.length > 0) activated = true;
+      }
+    } catch {}
+    try {
+      const narr = localStorage.getItem(`vfh_incident_narrative:${inc}`);
+      if (narr) {
+        const parsed = JSON.parse(narr);
+        if (Array.isArray(parsed) && parsed.length > 0) activated = true;
+      }
+    } catch {}
+    try {
+      const oic = localStorage.getItem(`vfh_incident_narrative_oic:${inc}`) || '';
+      if (oic && oic.trim()) activated = true;
+    } catch {}
+    setOtherActivatedLocal(activated);
+  }, [formData.incidentNumber, isActiveIncident]);
+  
+  React.useEffect(() => {
+    const checkRemote = async () => {
+      const inc = formData.incidentNumber || localStorage.getItem('vfh_current_incident_number') || '';
+      if (!inc) { setOtherActivatedRemote(false); return; }
+      try {
+        const { data: d1 } = await supabase
+          .from('03_ecc_03_02_Incident_Call_Dispatching')
+          .select('incident_number')
+          .eq('incident_number', inc)
+          .limit(1);
+        const { data: d2 } = await supabase
+          .from('03_ecc_03_03_Responding_Resources')
+          .select('incident_number')
+          .eq('incident_number', inc)
+          .limit(1);
+        const { data: d3 } = await supabase
+          .from('03_ecc_03_04_Incident_Narrative')
+          .select('incident_number')
+          .eq('incident_number', inc)
+          .limit(1);
+        const hasAny = (Array.isArray(d1) && d1.length > 0) || (Array.isArray(d2) && d2.length > 0) || (Array.isArray(d3) && d3.length > 0);
+        setOtherActivatedRemote(hasAny);
+      } catch {
+        setOtherActivatedRemote(false);
+      }
+    };
+    checkRemote();
+  }, [formData.incidentNumber, isActiveIncident]);
+  
+  const openCancelModal = () => {
+    if (!isActiveIncident || otherActivatedLocal || otherActivatedRemote) return;
+    setCancelReason('');
+    setShowCancelModal(true);
+  };
+  
+  const confirmCancellation = async () => {
+    const inc = formData.incidentNumber || localStorage.getItem('vfh_current_incident_number') || '';
+    if (!inc || !cancelReason) return;
+    try {
+      const payload: any = {
+        incident_number: inc,
+        cancel_reason: cancelReason,
+        cancelled_at: new Date().toISOString(),
+        shift_on_duty: formData.shiftOnDuty || null,
+        call_taker_id: formData.callTaker || null
+      };
+      const { error } = await supabase
+        .from('03_ecc_03_05_Incident_Cancellations')
+        .insert([payload]);
+      if (error) {
+        alert(`Failed to record cancellation: ${error.message}`);
+        return;
+      }
+      try { localStorage.removeItem('vfh_call_taking_form'); } catch {}
+      try { localStorage.setItem('vfh_current_incident_number', ''); } catch {}
+      cancelIncident();
+      setShowCancelModal(false);
+      alert('Incident cancelled and recorded');
+    } catch (e: any) {
+      alert(`Unexpected error recording cancellation: ${e?.message || e}`);
+    }
+  };
 
   return (
     <MainContent aria-label="Main content">
       {/* Header Section - match EmergencyIncidentLogging */}
       <Section aria-labelledby="call-taking-title">
         <div style={{ marginTop: '10px' }}>
+          {showCancelModal && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+              justifyContent: 'center', alignItems: 'center', zIndex: 10000
+            }}>
+              <div style={{
+                background: 'white', padding: '24px', borderRadius: '12px',
+                width: '92%', maxWidth: '520px', borderLeft: '5px solid #dc3545'
+              }}>
+                <h3 style={{ color: '#dc3545', marginTop: 0, marginBottom: '16px' }}>
+                  Cancel Incident
+                </h3>
+                <p style={{ color: '#333', marginBottom: '16px' }}>
+                  Select the reason for cancellation. The incident number will be recorded with the selected reason to support false alarm reporting.
+                </p>
+                <div role="group" aria-label="Cancellation reason" style={{ display: 'grid', gap: '8px', marginBottom: '18px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      value="Operator Error"
+                      checked={cancelReason === 'Operator Error'}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                    />
+                    <span>Operator Error</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      value="False Alarm Malicious"
+                      checked={cancelReason === 'False Alarm Malicious'}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                    />
+                    <span>False Alarm Malicious</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      value="False Alarm Good Intent"
+                      checked={cancelReason === 'False Alarm Good Intent'}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                    />
+                    <span>False Alarm with Good Intent</span>
+                  </label>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelModal(false)}
+                    style={{ padding: '10px 18px', border: 'none', borderRadius: '6px', fontWeight: 'bold', backgroundColor: '#6c757d', color: 'white' }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmCancellation}
+                    disabled={!cancelReason}
+                    style={{ padding: '10px 18px', border: 'none', borderRadius: '6px', fontWeight: 'bold', backgroundColor: '#dc3545', color: 'white', opacity: cancelReason ? 1 : 0.6, cursor: cancelReason ? 'pointer' : 'not-allowed' }}
+                  >
+                    Confirm Cancellation
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <FlexRow>
             <Column style={{ flex: '1', minWidth: '0' }}>
               <Title id="call-taking-title">Incident Call Taking</Title>
@@ -542,7 +732,7 @@ export const IncidentCallTaking: React.FC = () => {
             </ImageColumn>
           </FlexRow>
           <div style={{ marginTop: '12px', display: 'flex', alignItems: 'flex-end', gap: '16px', justifyContent: 'space-between' }}>
-            <EmergencyButton onClick={initiateNewIncident}>Initiate a New Emergency Incident</EmergencyButton>
+            <EmergencyButton onClick={initiateNewIncident} data-screenshot-exclude="true">Initiate a New Emergency Incident</EmergencyButton>
             <Input
               type="text"
               id="incidentNumber"
@@ -553,9 +743,11 @@ export const IncidentCallTaking: React.FC = () => {
               placeholder="yyyy-mm-dd hh:mm 00001"
               style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }}
               readOnly
+              data-screenshot-exclude="true"
             />
           </div>
 
+          <div id="callTakingDataSection">
           <div style={{ marginTop: '12px' }}>
             <InlineFormGrid>
               <FormGroup>
@@ -649,11 +841,12 @@ export const IncidentCallTaking: React.FC = () => {
               </FormGroup>
             </InlineFormGrid>
           </div>
+          </div>
           
         </div>
       </Section>
       <ButtonRow>
-        <CancelButton onClick={cancelIncident} disabled={!isActiveIncident}>Cancel Incident</CancelButton>
+        <CancelButton onClick={openCancelModal} disabled={!isActiveIncident || otherActivatedLocal || otherActivatedRemote}>Cancel Incident</CancelButton>
         <DispatchButton onClick={dispatchIncident} disabled={!isActiveIncident}>Dispatch Incident</DispatchButton>
       </ButtonRow>
     </MainContent>
