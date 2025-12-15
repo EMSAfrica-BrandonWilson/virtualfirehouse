@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 // Simplified utility functions for VirtualFireHouse
 export function cn(...classes: (string | undefined | null | boolean)[]): string {
   return classes.filter(Boolean).join(' ');
@@ -300,4 +301,16 @@ export function formatSupabaseError(err: any, fallback?: string): string {
   // Fallback
   const base = message || details || 'An unexpected error occurred. Please try again.';
   return fallback ? `${fallback}${message ? ` (${message})` : ''}` : base;
+}
+
+export async function recordIncidentAudit(incidentNumber: string, actionType: string, pageName?: string, description?: string) {
+  const payload: any = {
+    incident_number: incidentNumber,
+    action_type: actionType,
+    page_name: pageName || null,
+    description: description || null
+  };
+  const { data: auth } = await supabase.auth.getUser();
+  payload.performed_by = auth?.user?.id || null;
+  await supabase.from('03_ecc_03_10_Incident_Audit_Log').insert([payload]);
 }

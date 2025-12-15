@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { usePageImage } from '../../hooks/usePageImage';
+import { supabase } from '../../lib/supabase';
 
 const MainContent = styled.main`
   margin: 10px;
@@ -28,6 +29,38 @@ const HeaderImage = styled.img` width: 224px; height: auto; max-width: 224px; bo
 const ImagePlaceholder = styled.div` width: 224px; height: 160px; background: #f5f5f5; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #666; box-shadow: 0 2px 8px rgba(0,0,0,.1);`;
 const Input = styled.input` width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px; &:focus { border-color: #1177BB; outline: none; }`;
 
+const AuditContainer = styled.div`
+  margin-top: 16px;
+  border: 2px solid #1177BB;
+  border-radius: 8px;
+  background: #f9fafb;
+  padding: 12px;
+`;
+
+const AuditTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  background-color: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+`;
+
+const Th = styled.th`
+  background-color: #1177BB;
+  color: white;
+  padding: 10px;
+  text-align: left;
+  font-size: 13px;
+`;
+
+const Td = styled.td`
+  border-bottom: 1px solid #eee;
+  padding: 10px;
+  font-size: 13px;
+`;
+
 const ButtonRow = styled.div`
   display: flex;
   gap: 12px;
@@ -53,8 +86,46 @@ const ActionButton = styled.button`
 export const IncidentRecordModificationHistory: React.FC = () => {
   const { imageUrl, loading: imageLoading } = usePageImage('incident-record-mod-history', '/images/ControlRoom.png');
   const [incidentNumber, setIncidentNumber] = useState('');
+  const [auditRows, setAuditRows] = useState<any[]>([]);
   const navigate = useNavigate();
   useEffect(() => { setIncidentNumber(localStorage.getItem('vfh_current_incident_number') || ''); }, []);
+  useEffect(() => {
+    const inc = localStorage.getItem('vfh_current_incident_number') || '';
+    if (!inc) {
+      setAuditRows([]);
+      return;
+    }
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('03_ecc_03_10_Incident_Audit_Log')
+          .select('id,incident_number,action_type,page_name,description,performed_by,performed_at')
+          .eq('incident_number', inc)
+          .order('performed_at', { ascending: true });
+        if (error) throw error;
+        setAuditRows(Array.isArray(data) ? data : []);
+      } catch {
+        setAuditRows([]);
+      }
+    })();
+    const ch = supabase
+      .channel(`incident-audit-${inc}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: '03_ecc_03_10_Incident_Audit_Log', filter: `incident_number=eq.${inc}` }, payload => {
+        const row: any = payload?.new || payload?.old;
+        if (!row) return;
+        if (payload.eventType === 'INSERT') {
+          setAuditRows(prev => [...prev, row]);
+        } else if (payload.eventType === 'DELETE') {
+          setAuditRows(prev => prev.filter(r => r.id !== row.id));
+        } else if (payload.eventType === 'UPDATE') {
+          setAuditRows(prev => prev.map(r => (r.id === row.id ? row : r)));
+        }
+      })
+      .subscribe();
+    return () => {
+      try { supabase.removeChannel(ch); } catch {}
+    };
+  }, [incidentNumber]);
   return (
     <MainContent aria-label="Main content">
       <Section aria-labelledby="history-title">
@@ -80,10 +151,41 @@ export const IncidentRecordModificationHistory: React.FC = () => {
           <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
             <Input type="text" value={incidentNumber} readOnly placeholder="yyyy-mm-dd hh:mm 00001" style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }} />
           </div>
+          <AuditContainer>
+            <div style={{ color: '#1177BB', fontWeight: 700, marginBottom: '8px' }}>
+              Incident Audit Log
+            </div>
+            {auditRows.length === 0 ? (
+              <div style={{ fontSize: '13px', color: '#666' }}>No audit entries recorded yet.</div>
+            ) : (
+              <AuditTable>
+                <thead>
+                  <tr>
+                    <Th>Time</Th>
+                    <Th>User</Th>
+                    <Th>Action</Th>
+                    <Th>Page</Th>
+                    <Th>Details</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditRows.map(row => (
+                    <tr key={row.id}>
+                      <Td>{new Date(row.performed_at).toLocaleString()}</Td>
+                      <Td>{row.performed_by || '—'}</Td>
+                      <Td>{row.action_type || '—'}</Td>
+                      <Td>{row.page_name || '—'}</Td>
+                      <Td>{row.description || '—'}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </AuditTable>
+            )}
+          </AuditContainer>
         </div>
       </Section>
       <ButtonRow>
-        <ActionButton onClick={() => navigate('/control/emergency-incident-logging/record-lock-status')}>Save & Continue to Record Lock Status</ActionButton>
+        <ActionButton onClick={() => navigate('/control/emergency-incident-logging/incident-report')}>Save & Continue to Incident Report</ActionButton>
       </ButtonRow>
     </MainContent>
   );

@@ -83,7 +83,7 @@ export const IncidentRecordLockStatus: React.FC = () => {
         </div>
       </Section>
       <ButtonRow>
-        <ActionButton onClick={() => navigate('/control/emergency-incident-logging/incident-report')}>Save & Continue to Incident Report</ActionButton>
+        <ActionButton onClick={() => navigate('/control/emergency-incident-logging/history')}>Save & Continue to Record Modification History</ActionButton>
       </ButtonRow>
     </MainContent>
   );

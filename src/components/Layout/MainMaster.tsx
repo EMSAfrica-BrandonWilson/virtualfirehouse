@@ -330,8 +330,8 @@ const getLeftMenuItems = (currentPath: string, isSystemAdmin: boolean = false, u
         { name: 'incident-route-finder', path: '/control/emergency-incident-logging/route-finder', text: 'Incident Route Finder' },
         { name: 'weather-information', path: '/control/emergency-incident-logging/weather', text: 'Weather Information' },
         { name: 'multi-media-files', path: '/control/emergency-incident-logging/media', text: 'Multi-Media Files' },
-        { name: 'record-modification-history', path: '/control/emergency-incident-logging/history', text: 'Record Modification History' },
         { name: 'record-lock-status', path: '/control/emergency-incident-logging/lock-status', text: 'Record Lock Status' },
+        { name: 'record-modification-history', path: '/control/emergency-incident-logging/history', text: 'Record Modification History' },
         { name: 'incident-report', path: '/control/emergency-incident-logging/report', text: 'Incident Report' },
         { name: 'test-page', path: '/control/emergency-incident-logging/test', text: 'Test page' },
       ];

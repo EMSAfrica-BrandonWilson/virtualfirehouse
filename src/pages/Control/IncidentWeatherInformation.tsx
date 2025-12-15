@@ -9,7 +9,7 @@ const MainContent = styled.main`
   font-family: 'Segoe UI Variable Display', 'Poppins', Arial, sans-serif;
   font-size: 112.5%;
 `;
-const Section = styled.section` margin-bottom: 2rem;`;
+const Section = styled.section` margin-bottom: 0;`;
 const FlexRow = styled.div`
   display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px;
   @media (max-width: 768px) { flex-direction: column; }
@@ -97,7 +97,7 @@ const ButtonRow = styled.div`
   display: flex;
   gap: 12px;
   justify-content: flex-start;
-  margin-top: 16px;
+  margin-top: 0;
 `;
 
 const ActionButton = styled.button`
