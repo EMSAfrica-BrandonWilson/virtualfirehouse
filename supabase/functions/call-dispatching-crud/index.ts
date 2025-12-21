@@ -43,7 +43,7 @@ serve(async (req) => {
       incident_number: String(body?.incident_number || ""),
       dispatch_date: String(body?.dispatch_date || ""),
       dispatch_time: String(body?.dispatch_time || ""),
-      dispatcher_id: body?.dispatcher_id ? String(body.dispatcher_id) : null,
+      dispatcher_name: body?.dispatcher_name ? String(body.dispatcher_name) : null,
       dispatched_stations: Array.isArray(body?.dispatched_stations) ? body.dispatched_stations : [],
     };
 

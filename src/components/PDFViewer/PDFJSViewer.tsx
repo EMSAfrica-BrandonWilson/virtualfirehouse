@@ -159,6 +159,7 @@ export const PDFJSViewer: React.FC<PDFJSViewerProps> = ({ pdfBlob, title: propTi
   const fileName = pathParts[pathParts.length - 1];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const renderTaskRef = useRef<any | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -168,6 +169,13 @@ export const PDFJSViewer: React.FC<PDFJSViewerProps> = ({ pdfBlob, title: propTi
   const [emailSending, setEmailSending] = useState(false);
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
   const [isHtmlContent, setIsHtmlContent] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      try { renderTaskRef.current?.cancel?.(); } catch {}
+      renderTaskRef.current = null;
+    };
+  }, []);
 
   // Calculate optimal zoom to fit page in viewport (favor width for landscape)
   const calculateFitToViewportZoom = async (pdf: any, pageNumber: number = 1): Promise<number> => {
@@ -383,7 +391,20 @@ export const PDFJSViewer: React.FC<PDFJSViewerProps> = ({ pdfBlob, title: propTi
       };
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 
-      await page.render(renderContext).promise;
+      if ((renderTaskRef as any)?.current) {
+        try { (renderTaskRef as any).current.cancel(); } catch {}
+        (renderTaskRef as any).current = null;
+      }
+      const task = page.render(renderContext);
+      (renderTaskRef as any).current = task;
+      try {
+        await task.promise;
+      } catch (e) {
+        (renderTaskRef as any).current = null;
+        setIsRendering(false);
+        return;
+      }
+      (renderTaskRef as any).current = null;
       // Neutralize any global CSS rotation with highest priority
       try {
         canvas.style.setProperty('transform', 'none', 'important');
@@ -394,7 +415,7 @@ export const PDFJSViewer: React.FC<PDFJSViewerProps> = ({ pdfBlob, title: propTi
         }
         document.body.classList.remove('pdf-landscape');
       } catch {}
-      
+
       setIsRendering(false);
     } catch (error) {
       console.error('Error rendering page:', error);
@@ -440,7 +461,20 @@ export const PDFJSViewer: React.FC<PDFJSViewerProps> = ({ pdfBlob, title: propTi
       };
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       
-      await page.render(renderContext).promise;
+      if ((renderTaskRef as any)?.current) {
+        try { (renderTaskRef as any).current.cancel(); } catch {}
+        (renderTaskRef as any).current = null;
+      }
+      const task = page.render(renderContext);
+      (renderTaskRef as any).current = task;
+      try {
+        await task.promise;
+      } catch (e) {
+        (renderTaskRef as any).current = null;
+        setIsRendering(false);
+        return;
+      }
+      (renderTaskRef as any).current = null;
       // Neutralize any global CSS rotation with highest priority
       try {
         canvas.style.setProperty('transform', 'none', 'important');
@@ -451,7 +485,7 @@ export const PDFJSViewer: React.FC<PDFJSViewerProps> = ({ pdfBlob, title: propTi
         }
         document.body.classList.remove('pdf-landscape');
       } catch {}
-      
+
       setIsRendering(false);
     } catch (error) {
       console.error('Error rendering page:', error);

@@ -53,7 +53,6 @@ const profileService = {
         full_name: user.user_metadata?.full_name || '',
         display_name: user.user_metadata?.display_name || user.user_metadata?.full_name || '',
         staff_id: user.user_metadata?.staff_id || '',
-        is_admin: true,
         created_at: formatDateTimeReadable(new Date()),
         updated_at: formatDateTimeReadable(new Date())
       };
@@ -83,9 +82,10 @@ const profileService = {
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return null;
 
+      const { is_admin, ...safeUpdates } = (updates as any) || {};
       const { data, error } = await sb
         .from('profiles')
-        .update({ ...updates, updated_at: formatDateTimeReadable(new Date()) })
+        .update({ ...safeUpdates, updated_at: formatDateTimeReadable(new Date()) })
         .eq('user_id', user.id)
         .select()
         .single();
@@ -244,14 +244,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setProfileLoading(true);
       const profile = await profileService.getUserProfile();
       if (profile) {
-        const updated = await profileService.updateProfile({ is_admin: true });
-        setUserProfile(updated || profile);
+        setUserProfile(profile);
       } else {
         try {
           // Try to create a real profile in the database
           const createdProfile = await profileService.createProfile(currentUser);
-          const updated = await profileService.updateProfile({ is_admin: true });
-          setUserProfile(updated || createdProfile);
+          setUserProfile(createdProfile);
         } catch (createError) {
           console.error('Failed to create profile in database:', createError);
           

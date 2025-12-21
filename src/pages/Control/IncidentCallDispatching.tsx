@@ -342,7 +342,7 @@ export const IncidentCallDispatching: React.FC = () => {
     const { name, value } = e.target;
     if (name === 'shiftOnDuty') localStorage.setItem('vfh_shift_on_duty', value);
     if (name === 'dispatcher') {
-      localStorage.setItem('vfh_dispatcher_id', value);
+      localStorage.setItem('vfh_dispatcher_id', value); // Keeping key for compatibility, storing name
       localStorage.setItem('vfh_dispatcher_user_override', '1');
     }
     setForm(prev => {
@@ -374,7 +374,7 @@ export const IncidentCallDispatching: React.FC = () => {
   const reloadDispatchedFromDB = async (inc: string) => {
     const { data } = await supabase
       .from('03_ecc_03_02_Incident_Call_Dispatching')
-      .select('dispatch_date, dispatch_time, dispatcher_id, dispatched_stations')
+      .select('dispatch_date, dispatch_time, dispatcher_name, dispatched_stations')
       .eq('incident_number', inc)
       .limit(1);
     const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
@@ -391,7 +391,7 @@ export const IncidentCallDispatching: React.FC = () => {
         ...prev,
         dispatchDate: String(row.dispatch_date || prev.dispatchDate || ''),
         dispatchTime: String(row.dispatch_time || prev.dispatchTime || ''),
-        dispatcher: String(row.dispatcher_id || prev.dispatcher || '')
+        dispatcher: String(row.dispatcher_name || prev.dispatcher || '')
       }));
     }
   };
@@ -524,7 +524,7 @@ export const IncidentCallDispatching: React.FC = () => {
       incident_number: form.incidentNumber,
       dispatch_date: form.dispatchDate,
       dispatch_time: form.dispatchTime,
-      dispatcher_id: form.dispatcher || null,
+      dispatcher_name: form.dispatcher || null,
       dispatched_stations: dispatchedStations
     };
     try {
@@ -648,7 +648,7 @@ export const IncidentCallDispatching: React.FC = () => {
                   <Select id="dispatcher" name="dispatcher" value={form.dispatcher} onChange={handleChange} required disabled={!isActive}>
                     <option value="">Select Dispatcher...</option>
                     {dispatcherOptions.map(opt => (
-                      <option key={opt.staff_id} value={opt.staff_id}>{opt.full_name}</option>
+                      <option key={opt.staff_id} value={opt.full_name}>{opt.full_name}</option>
                     ))}
                   </Select>
                 </FormGroup>

@@ -5,7 +5,6 @@ import { usePageImage } from '../../hooks/usePageImage';
 import { supabase } from '../../lib/supabase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import html2canvas from 'html2canvas';
 import { setupVFH_A4_P, cleanupTrailingBlankPages, applyFinalPageNumbers, createStandardizedFooter } from '../../utils/pdfReportHelper';
 import { getCompanyLogo } from '../../utils/companyLogo';
 import { formatDateTime } from '../../lib/utils';
@@ -154,310 +153,308 @@ export const IncidentReport: React.FC = () => {
       doc.setTextColor(255, 255, 255);
       doc.text('Incident Call Taking', 14, bannerY + 5);
       doc.setTextColor(0, 0, 0);
-      const mountContainer = document.createElement('div');
-      mountContainer.style.position = 'fixed';
-      mountContainer.style.left = '-10000px';
-      mountContainer.style.top = '0';
-      mountContainer.style.width = '1100px';
-      mountContainer.style.zIndex = '-1';
-      mountContainer.style.opacity = '0';
-      mountContainer.style.background = '#ffffff';
-      document.body.appendChild(mountContainer);
-      const localFormRaw = localStorage.getItem('vfh_call_taking_form');
-      let localForm: any = {};
+      // --- CALL TAKING SECTION (Replaced Screenshot with Table) ---
+      // Removed html2canvas logic to improve reliability
+      
+      const s = callTaking || (() => {
+        try {
+          const local = localStorage.getItem('vfh_call_taking_form');
+          if (local) {
+            const p = JSON.parse(local);
+            // Map local camelCase to DB snake_case
+            return {
+              shift_on_duty: p.shiftOnDuty,
+              call_taker_name: p.callTaker,
+              incident_date: p.incidentDate,
+              incident_time: p.incidentTime,
+              caller_name: p.callName,
+              caller_number: p.callerNumber,
+              second_caller_name: p.secondCaller,
+              second_caller_number: p.secondCallerNumber,
+              incident_category: p.incidentCategory,
+              incident_sub_category: p.incidentSubCategory,
+              street_no: p.streetNo,
+              street_name: p.streetName,
+              suburb: p.suburb
+            };
+          }
+        } catch {}
+        return {};
+      })();
+
+      console.log('Call Taking Data for PDF:', s);
+
+      // Fetch Call Taker Name if we have an ID
+      let callTakerName = s.call_taker_name || s.call_taker_id || '';
+      if (callTakerName) {
+        try {
+          // Try to fetch profile regardless of format (UUID or otherwise)
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, display_name')
+            .eq('user_id', callTakerName)
+            .single();
+          if (profile) {
+            callTakerName = profile.full_name || profile.display_name || callTakerName;
+          }
+        } catch {}
+      }
+
+      const callTakingRows: string[][] = [
+        ['Shift on Duty', s.shift_on_duty || '', 'Call Taker', callTakerName],
+        ['Incident Date', s.incident_date || '', 'Incident Time', s.incident_time || ''],
+        ['Caller Name', s.caller_name || '', 'Caller Number', s.caller_number || ''],
+        ['2nd Caller', s.second_caller_name || '', '2nd Caller Number', s.second_caller_number || ''],
+        ['Incident Category', s.incident_category || '', 'Incident Sub-Category', s.incident_sub_category || ''],
+        ['Street No', s.street_no || '', 'Street Name', s.street_name || ''],
+        ['Suburb', s.suburb || '', '', '']
+      ];
+      
+      autoTable(doc, {
+        startY: bannerY + 12,
+        head: [], // Remove header
+        body: callTakingRows,
+        styles: tableConfig.styles,
+        headStyles: { ...tableConfig.headStyles, display: 'none' as any }, // Ensure header is hidden (type cast for safety)
+        alternateRowStyles: tableConfig.alternateRowStyles,
+        columnStyles: {
+          0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+          1: { cellWidth: 51 },
+          2: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+          3: { cellWidth: 51 }
+        },
+        margin: tableConfig.margin,
+        tableWidth: tableConfig.tableWidth,
+        didDrawPage: tableConfig.didDrawPage
+      });
+
+      // --- DISPATCHING SECTION ---
+      // Calculate start Y for next section
+      let nextY = (doc as any).lastAutoTable?.finalY + 10 || tableStartY + 10;
+      
+      // Check if we need a new page for the Dispatching Header + First Table
+      const pageHeight = (doc.internal.pageSize as any).height || (doc.internal.pageSize as any).getHeight?.();
+      const footerHeight = 30; // approx
+      if (nextY + 40 > pageHeight - footerHeight) {
+        doc.addPage();
+        nextY = tableStartY;
+      }
+
+      // Dispatching Header
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, nextY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(14);
+      doc.text('Incident Call Dispatching', 14, nextY + 5);
+      doc.setTextColor(0, 0, 0);
+      
+      const dispatchTableStart = nextY + 12;
+      
+      // ... (Rest of Dispatching Logic)
+      const normalizeStations = (raw: any): any[] => {
+        if (Array.isArray(raw)) return raw;
+        if (raw && typeof raw === 'string') {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+            if (parsed && typeof parsed === 'object') {
+              if (Array.isArray((parsed as any).stations)) return (parsed as any).stations;
+              if (Array.isArray((parsed as any).items)) return (parsed as any).items;
+            }
+          } catch {}
+        }
+        if (raw && typeof raw === 'object') {
+          if (Array.isArray((raw as any).stations)) return (raw as any).stations;
+          if (Array.isArray((raw as any).items)) return (raw as any).items;
+        }
+        return [];
+      };
+      const rawDispatched = (dispatching as any)?.dispatched_stations;
+      const dispatchedList = normalizeStations(rawDispatched);
+      let jsonString = '';
       try {
-        if (localFormRaw) {
-          const parsed = JSON.parse(localFormRaw);
-          if (parsed && typeof parsed === 'object') localForm = parsed;
+        if (typeof rawDispatched === 'string') {
+          try {
+            const parsed = JSON.parse(rawDispatched);
+            jsonString = JSON.stringify(parsed, null, 2);
+          } catch {
+            jsonString = rawDispatched;
+          }
+        } else if (rawDispatched && typeof rawDispatched === 'object') {
+          jsonString = JSON.stringify(rawDispatched, null, 2);
+        } else {
+          jsonString = JSON.stringify(dispatchedList, null, 2);
+        }
+      } catch {
+        jsonString = '[]';
+      }
+      
+      const localDispatchFormRaw = localStorage.getItem(`vfh_dispatching_form:${inc}`);
+      let localDispatchForm: any = {};
+      try {
+        if (localDispatchFormRaw) {
+          const parsed = JSON.parse(localDispatchFormRaw);
+          if (parsed && typeof parsed === 'object') localDispatchForm = parsed;
         }
       } catch {}
-      const first = (...vals: any[]) => {
+      const firstNonEmpty = (...vals: any[]) => {
         for (const v of vals) {
           if (v !== undefined && v !== null && String(v).trim() !== '') return String(v);
         }
         return '';
       };
-      const s = {
-        shift: first(callTaking?.shift_on_duty, localForm.shiftOnDuty),
-        call_taker: first(callTaking?.call_taker_id, localForm.callTaker),
-        incident_date: first(callTaking?.incident_date, localForm.incidentDate),
-        incident_time: first(callTaking?.incident_time, localForm.incidentTime),
-        caller_name: first(callTaking?.caller_name, localForm.callName, localForm.callerName),
-        caller_number: first(callTaking?.caller_number, localForm.callerNumber, localForm.callerPhone),
-        second_caller: first((callTaking as any)?.second_caller_name, localForm.secondCaller),
-        second_caller_number: first((callTaking as any)?.second_caller_number, localForm.secondCallerNumber),
-        incident_category: first((callTaking as any)?.incident_category, localForm.incidentCategory),
-        incident_sub_category: first((callTaking as any)?.incident_sub_category, localForm.incidentSubCategory),
-        street_no: first(callTaking?.street_no, localForm.streetNo),
-        street_name: first(callTaking?.street_name, localForm.streetName),
-        suburb: first(callTaking?.suburb, localForm.suburb)
-      };
-      if (s.call_taker && /^\d+$/.test(s.call_taker)) {
+      let dispatcherName = firstNonEmpty((dispatching as any)?.dispatcher_name, (dispatching as any)?.dispatcher_id, localDispatchForm.dispatcher);
+      if (dispatcherName && /^\d+$/.test(dispatcherName)) {
         try {
           const { data: staff } = await supabase
             .from('02_admin_staff_1_registration')
             .select('first_name, middle_name, last_name')
-            .eq('staff_id', s.call_taker)
+            .eq('staff_id', dispatcherName)
             .single();
           if (staff) {
             const full = [staff.first_name, staff.middle_name, staff.last_name].filter(Boolean).join(' ').trim();
-            if (full) s.call_taker = full;
+            if (full) dispatcherName = full;
           }
         } catch {}
       }
-      const shiftMap: Record<string, string> = { Blue: 'Blue Shift', Green: 'Green Shift', Red: 'Red Shift' };
-      if (shiftMap[s.shift]) {
-        s.shift = shiftMap[s.shift];
-      }
-      const html = `
-        <div id="callTakingScreenshot" style="padding: 8px; background: #ffffff; font-family: Arial, sans-serif;">
-          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div>
-              <div style="font-size:12px; font-weight:600;">Shift on Duty *</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.shift || ''}</div>
-            </div>
-            <div>
-              <div style="font-size:12px; font-weight:600;">Call Taker *</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.call_taker || ''}</div>
-            </div>
-            <div>
-              <div style="font-size:12px; font-weight:600;">Incident Date *</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.incident_date || ''}</div>
-            </div>
-            <div>
-              <div style="font-size:12px; font-weight:600;">Incident Time *</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.incident_time || ''}</div>
-            </div>
-          </div>
-          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div>
-              <div style="font-size:12px; font-weight:600;">Caller Name *</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.caller_name || ''}</div>
-            </div>
-            <div>
-              <div style="font-size:12px; font-weight:600;">Caller Number *</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.caller_number || ''}</div>
-            </div>
-            <div>
-              <div style="font-size:12px; font-weight:600;">2nd Caller</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.second_caller || ''}</div>
-            </div>
-            <div>
-              <div style="font-size:12px; font-weight:600;">2nd Caller Number</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.second_caller_number || ''}</div>
-            </div>
-          </div>
-          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px;">
-            <div>
-              <div style="font-size:12px; font-weight:600;">Incident Category *</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.incident_category || ''}</div>
-            </div>
-            <div>
-              <div style="font-size:12px; font-weight:600;">Incident Sub-Category</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.incident_sub_category || ''}</div>
-            </div>
-            <div></div><div></div>
-          </div>
-          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
-            <div>
-              <div style="font-size:12px; font-weight:600;">Street No</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.street_no || ''}</div>
-            </div>
-            <div>
-              <div style="font-size:12px; font-weight:600;">Street Name *</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.street_name || ''}</div>
-            </div>
-            <div>
-              <div style="font-size:12px; font-weight:600;">Suburb *</div>
-              <div style="border:1px solid #ced4da; border-radius:4px; padding:8px; height:34px; display:flex; align-items:center;">${s.suburb || ''}</div>
-            </div>
-            <div></div>
-          </div>
-        </div>
-      `;
-      mountContainer.innerHTML = html;
-      const sectionEl = mountContainer.querySelector('#callTakingScreenshot') as HTMLElement | null;
-      if (sectionEl) {
-        const canvas = await html2canvas(sectionEl, { scale: 2, backgroundColor: '#ffffff' });
-        const imgData = canvas.toDataURL('image/png');
-        const imgProps = (doc as any).getImageProperties ? (doc as any).getImageProperties(imgData) : { width: canvas.width, height: canvas.height };
-        const availableWidth = pageWidth - 20;
-        let imgHeight = availableWidth * (imgProps.height / imgProps.width);
-        const pageHeight = (doc.internal.pageSize as any).height || (doc.internal.pageSize as any).getHeight?.();
-        const footerHeight = 24;
-        const reserveForSecondBanner = 8 + 6;
-        const maxHeight = pageHeight - (bannerY + 12) - footerHeight - reserveForSecondBanner;
-        if (imgHeight > maxHeight) {
-          const scale = maxHeight / imgHeight;
-          imgHeight = imgHeight * scale;
-        }
-        doc.addImage(imgData, 'PNG', 10, bannerY + 12, availableWidth, imgHeight);
-        const info = (doc as any).getCurrentPageInfo?.();
-        const currentPage = info?.pageNumber || 1;
-        const totalPagesNow = doc.getNumberOfPages();
-        createStandardizedFooter({
-          doc,
-          data: {
-            departmentName: 'King Fahd International Airport',
-            departmentType: 'Airport Rescue & Fire Fighting Services',
-            reportTitle: `Incident Report: ${inc}`,
-            summaryText,
-            currentUser
-          },
-          pageData: { pageNumber: currentPage },
-          totalPages: totalPagesNow,
-          renderPageNumber: false
-        });
-        const secondBannerY = bannerY + 12 + imgHeight + 6;
-        if (secondBannerY + 8 <= pageHeight - footerHeight - 2) {
-          doc.setFillColor(17, 119, 187);
-          doc.rect(5, secondBannerY, pageWidth - 10, 8, 'F');
-          doc.setTextColor(255, 255, 255);
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(14);
-          doc.text('Incident Call Taking', 14, secondBannerY + 5);
-          doc.setTextColor(0, 0, 0);
-        }
-      }
-      document.body.removeChild(mountContainer);
-      doc.addPage();
-      doc.setFontSize(14);
-      doc.text('Incident Call Dispatching', 14, tableStartY - 6);
-      let dispatchTableStartY = tableStartY;
-      const dispBannerY = tableStartY - 6;
-      doc.setFillColor(17, 119, 187);
-      doc.rect(5, dispBannerY, pageWidth - 10, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(14);
-      doc.text('Dispatched Stations', 14, dispBannerY + 5);
-      doc.setTextColor(0, 0, 0);
+      
+      const shiftText = firstNonEmpty((dispatching as any)?.shift_on_duty, localDispatchForm.shiftOnDuty, s.shift);
+      const dateText = firstNonEmpty((dispatching as any)?.dispatch_date, localDispatchForm.dispatchDate);
+      const timeText = firstNonEmpty((dispatching as any)?.dispatch_time, localDispatchForm.dispatchTime);
+      
+      const metaRows: string[][] = [
+        ['Shift on Duty', shiftText || '', 'Dispatcher', dispatcherName || ''],
+        ['Dispatch Date', dateText || '', 'Dispatch Time', timeText || '']
+      ];
+      
       try {
-        const dispMount = document.createElement('div');
-        dispMount.style.position = 'fixed';
-        dispMount.style.left = '-10000px';
-        dispMount.style.top = '0';
-        dispMount.style.width = '1100px';
-        dispMount.style.zIndex = '-1';
-        dispMount.style.opacity = '1';
-        dispMount.style.background = '#ffffff';
-        document.body.appendChild(dispMount);
-        let dispatchedStations = Array.isArray(dispatching?.dispatched_stations) ? dispatching.dispatched_stations : [];
-        if (!Array.isArray(dispatchedStations) || dispatchedStations.length === 0) {
-          try {
-            const localKey = `vfh_dispatched_stations:${inc}`;
-            const saved = localStorage.getItem(localKey);
-            if (saved) {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed)) {
-                dispatchedStations = parsed.map((d: any) => ({
-                  station_id: String(d?.id || ''),
-                  station_name: String(d?.name || ''),
-                  dispatched_time: String(d?.time || ''),
-                  vehicle_call_sign: String((d as any)?.vehicle || '')
-                }));
-              }
-            }
-          } catch {}
-        }
-        const listHtml = dispatchedStations.length === 0
-          ? `<p style="color:#666;margin:0;">No stations dispatched yet.</p>`
-          : `<ul style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; padding:0; margin:0; font-family:Arial,sans-serif;">
-               ${dispatchedStations.map((d: any) => {
-                 const name = String(d?.station_name || d?.name || '');
-                 const time = String(d?.dispatched_time || d?.time || '');
-                 const vehicle = String(d?.vehicle_call_sign || (d as any)?.vehicle || '');
-                 const details = [
-                   vehicle ? ('Vehicle: ' + vehicle) : '',
-                   time ? ('Dispatched at ' + time) : ''
-                 ].filter(Boolean).join(' &mdash; ');
-                 return '<li style="'
-                           + 'list-style:none;'
-                           + 'padding:8px;'
-                           + 'border:1px solid #eee;'
-                           + 'border-radius:6px;'
-                           + 'display:flex;'
-                           + 'align-items:flex-start;'
-                           + 'gap:12px;'
-                         + '">'
-                           + '<button type="button" disabled style="'
-                             + 'padding:10px 18px;'
-                             + 'border:none;'
-                             + 'border-radius:6px;'
-                             + 'font-weight:bold;'
-                             + 'font-size:14px;'
-                             + 'background-color:#6c757d;'
-                             + 'color:white;'
-                             + 'opacity:0.6;'
-                             + 'cursor:not-allowed;'
-                           + '">Remove</button>'
-                           + '<div style="line-height:1.35;">'
-                             + '<div style="font-weight:600;">' + name + '</div>'
-                             + '<div style="color:#555;">' + details + '</div>'
-                           + '</div>'
-                         + '</li>';
-               }).join('')}
-             </ul>`;
-        const dispHtml = `
-          <div id="dispatchedStationsScreenshot" style="padding:8px; background:#ffffff; font-family:Arial,sans-serif;">
-            ${listHtml}
-          </div>
-        `;
-        dispMount.innerHTML = dispHtml;
-        const dispEl = dispMount.querySelector('#dispatchedStationsScreenshot') as HTMLElement | null;
-        if (dispEl) {
-          const canvas = await html2canvas(dispEl, { scale: 2, backgroundColor: '#ffffff' });
-          const imgData = canvas.toDataURL('image/png');
-          const imgProps = (doc as any).getImageProperties ? (doc as any).getImageProperties(imgData) : { width: canvas.width, height: canvas.height };
-          const availableWidth = pageWidth - 20;
-          let dispImgHeight = availableWidth * (imgProps.height / imgProps.width);
-          const pageHeight = (doc.internal.pageSize as any).height || (doc.internal.pageSize as any).getHeight?.();
-          const footerHeight = 24;
-          const maxHeight = pageHeight - (dispBannerY + 12) - footerHeight - 4;
-          if (dispImgHeight > maxHeight) {
-            const scale = maxHeight / dispImgHeight;
-            dispImgHeight = dispImgHeight * scale;
+        autoTable(doc, {
+          startY: dispatchTableStart,
+          head: [], // Remove header
+          body: metaRows,
+          styles: tableConfig.styles,
+          headStyles: { ...tableConfig.headStyles, display: 'none' as any }, // Ensure header is hidden
+          alternateRowStyles: tableConfig.alternateRowStyles,
+          columnStyles: {
+            0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+            1: { cellWidth: 51 },
+            2: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+            3: { cellWidth: 51 }
+          },
+          margin: tableConfig.margin,
+          tableWidth: tableConfig.tableWidth,
+          didDrawPage: tableConfig.didDrawPage
+        });
+      } catch (e) {
+        console.error('Error drawing dispatch details table', e);
+      }
+      
+      let dispatchTableStartY = (((doc as any).lastAutoTable?.finalY) || dispatchTableStart) + 6;
+      
+      let tableStations = Array.isArray(rawDispatched) ? rawDispatched : dispatchedList;
+      if (!Array.isArray(tableStations) || tableStations.length === 0) {
+        try {
+          const localKey = `vfh_dispatched_stations:${inc}`;
+          const saved = localStorage.getItem(localKey);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) tableStations = parsed;
           }
-          doc.addImage(imgData, 'PNG', 10, dispBannerY + 12, availableWidth, dispImgHeight);
-          doc.setTextColor(0, 0, 0);
-          dispatchTableStartY = Math.max(tableStartY, dispBannerY + 12 + dispImgHeight + 8);
-        }
-        document.body.removeChild(dispMount);
-      } catch {}
-      const dispatchedStations = Array.isArray(dispatching?.dispatched_stations) ? dispatching.dispatched_stations : [];
-      const dispatchRows = dispatchedStations.map((d: any) => [
-        String(d?.station_name || d?.name || ''),
-        String(d?.dispatched_time || d?.time || ''),
-        String(d?.vehicle_call_sign || d?.call_sign || '')
-      ]);
+        } catch {}
+      }
+      
+      const dispatchRows: string[][] = [];
+      for (let i = 0; i < tableStations.length; i += 2) {
+        const d1 = tableStations[i];
+        const d2 = tableStations[i+1];
+        dispatchRows.push([
+          String(d1?.station_name || d1?.name || ''),
+          String(d1?.dispatched_time || d1?.time || ''),
+          d2 ? String(d2?.station_name || d2?.name || '') : '',
+          d2 ? String(d2?.dispatched_time || d2?.time || '') : ''
+        ]);
+      }
+
       autoTable(doc, {
         startY: dispatchTableStartY,
-        head: [['Station', 'Time', 'Vehicle']],
-        body: dispatchRows.length > 0 ? dispatchRows : [['', '', '']],
+        head: [], // Remove header
+        body: dispatchRows.length > 0 ? dispatchRows : [['', '', '', '']],
         styles: tableConfig.styles,
-        headStyles: tableConfig.headStyles,
+        headStyles: { ...tableConfig.headStyles, display: 'none' as any }, // Ensure header is hidden
         alternateRowStyles: tableConfig.alternateRowStyles,
+        columnStyles: {
+          0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+          1: { cellWidth: 51 },
+          2: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+          3: { cellWidth: 51 }
+        },
         margin: tableConfig.margin,
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
-      doc.addPage();
+      let respondingStartY = (doc as any).lastAutoTable?.finalY + 10 || tableStartY;
+      
+      // Check if we need a new page for Responding Vehicles
+      if (respondingStartY + 40 > pageHeight - footerHeight) {
+        doc.addPage();
+        respondingStartY = tableStartY;
+      }
+      
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, respondingStartY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Responding Resources', 14, tableStartY - 6);
-      const respondingList = Array.isArray(responding?.responding_vehicles) ? responding.responding_vehicles : [];
-      const respondingRows = respondingList.map((r: any) => [
-        String(r?.vehicle_call_sign || r?.call_sign || ''),
-        String(r?.crew || ''),
-        String(r?.arrival_time || ''),
-        String(r?.status || '')
-      ]);
+      doc.text('Responding Vehicles', 14, respondingStartY + 5);
+      doc.setTextColor(0, 0, 0);
+
+      let respondingList = Array.isArray(responding?.responding_vehicles) ? responding.responding_vehicles : [];
+      if (respondingList.length === 0) {
+        try {
+          const saved = localStorage.getItem(`vfh_responding_vehicles:${inc}`);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) respondingList = parsed;
+          }
+        } catch {}
+      }
+
+      const respondingRows: string[][] = [];
+      for (let i = 0; i < respondingList.length; i += 2) {
+        const r1 = respondingList[i];
+        const r2 = respondingList[i+1];
+
+        const formatDetails = (r: any) => {
+          if (!r) return '';
+          const station = r.station_name || r.station || '';
+          let time = r.arrival_time || r.time || '';
+          const incidentDate = s.incident_date || localStorage.getItem('vfh_current_incident_date') || '';
+          if (time && time.length < 12 && incidentDate) {
+             time = `${incidentDate} ${time}`;
+          }
+          return `From ${station} — At ${time}`;
+        };
+
+        respondingRows.push([
+          String(r1?.vehicle_call_sign || r1?.call_sign || r1?.vehicle_value || ''),
+          formatDetails(r1),
+          r2 ? String(r2?.vehicle_call_sign || r2?.call_sign || r2?.vehicle_value || '') : '',
+          r2 ? formatDetails(r2) : ''
+        ]);
+      }
       autoTable(doc, {
-        startY: tableStartY,
-        head: [['Vehicle', 'Crew', 'Arrival', 'Status']],
+        startY: respondingStartY + 12,
+        head: [], // Remove header
         body: respondingRows.length > 0 ? respondingRows : [['', '', '', '']],
         styles: tableConfig.styles,
-        headStyles: tableConfig.headStyles,
+        headStyles: { ...tableConfig.headStyles, display: 'none' as any }, // Ensure header is hidden
         alternateRowStyles: tableConfig.alternateRowStyles,
+        columnStyles: {
+          0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+          1: { cellWidth: 51 },
+          2: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
+          3: { cellWidth: 51 }
+        },
         margin: tableConfig.margin,
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage

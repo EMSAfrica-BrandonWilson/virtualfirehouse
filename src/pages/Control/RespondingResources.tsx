@@ -467,11 +467,29 @@ export const RespondingResources: React.FC = () => {
               {responding.length === 0 ? (
                 <p style={{ color: '#666' }}>No responding vehicles added yet.</p>
               ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                <ul style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', padding: 0, margin: 0 }}>
                   {responding.map(rv => (
-                    <li key={rv.vehicle_value} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '12px', padding: '8px', borderBottom: '1px solid #eee' }}>
+                    <li
+                      key={rv.vehicle_value}
+                      style={{
+                        listStyle: 'none',
+                        padding: '8px',
+                        border: '1px solid #eee',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '12px'
+                      }}
+                    >
                       <CancelButton type="button" onClick={() => removeRespondingVehicle(rv.vehicle_value)} disabled={!isActive}>Remove</CancelButton>
-                      <span><strong>{rv.vehicle_label}</strong> — from {rv.station_name}{rv.time ? ` at ${rv.time}` : ''}</span>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{rv.vehicle_label}</div>
+                        <div style={{ color: '#555' }}>
+                          {rv.station_name ? `From ${rv.station_name}` : ''}
+                          {(rv.station_name && rv.time) ? ' — ' : ''}
+                          {rv.time ? `At ${rv.time}` : ''}
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ul>

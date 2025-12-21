@@ -480,7 +480,7 @@ export const IncidentCallTaking: React.FC = () => {
         incident_date: formData.incidentDate,
         incident_time: formData.incidentTime,
         shift_on_duty: formData.shiftOnDuty || null,
-        call_taker_id: formData.callTaker || null,
+        call_taker_name: formData.callTaker || null,
         caller_name: formData.callName || null,
         caller_number: formData.callerNumber || null,
         second_caller_name: formData.secondCaller || null,
@@ -614,7 +614,7 @@ export const IncidentCallTaking: React.FC = () => {
         cancel_reason: cancelReason,
         cancelled_at: new Date().toISOString(),
         shift_on_duty: formData.shiftOnDuty || null,
-        call_taker_id: formData.callTaker || null
+        call_taker_name: formData.callTaker || null
       };
       const { error } = await supabase
         .from('03_ecc_03_05_Incident_Cancellations')
@@ -763,7 +763,7 @@ export const IncidentCallTaking: React.FC = () => {
                 <Label htmlFor="callTaker" className="required">Call Taker</Label>
                 <Select id="callTaker" name="callTaker" value={formData.callTaker} onChange={handleInputChange} required disabled={!isActiveIncident}>
                   <option value="">Select Call Taker...</option>
-                  {callTakerOptions.map(opt => (<option key={opt.staff_id} value={opt.staff_id}>{opt.full_name}</option>))}
+                  {callTakerOptions.map(opt => (<option key={opt.staff_id} value={opt.full_name}>{opt.full_name}</option>))}
                 </Select>
               </FormGroup>
               <FormGroup>
