@@ -238,7 +238,7 @@ export const IncidentReport: React.FC = () => {
         head: [], // Remove header
         body: callTakingRows,
         styles: tableConfig.styles,
-        headStyles: { ...tableConfig.headStyles, display: 'none' as any }, // Ensure header is hidden (type cast for safety)
+        headStyles: tableConfig.headStyles, // Ensure header is hidden (head is empty)
         alternateRowStyles: tableConfig.alternateRowStyles,
         columnStyles: {
           0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
@@ -357,7 +357,7 @@ export const IncidentReport: React.FC = () => {
           head: [], // Remove header
           body: metaRows,
           styles: tableConfig.styles,
-          headStyles: { ...tableConfig.headStyles, display: 'none' as any }, // Ensure header is hidden
+          headStyles: tableConfig.headStyles, // Ensure header is hidden (head is empty)
           alternateRowStyles: tableConfig.alternateRowStyles,
           columnStyles: {
             0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
@@ -404,7 +404,7 @@ export const IncidentReport: React.FC = () => {
         head: [], // Remove header
         body: dispatchRows.length > 0 ? dispatchRows : [['', '', '', '']],
         styles: tableConfig.styles,
-        headStyles: { ...tableConfig.headStyles, display: 'none' as any }, // Ensure header is hidden
+        headStyles: tableConfig.headStyles, // Ensure header is hidden (head is empty)
         alternateRowStyles: tableConfig.alternateRowStyles,
         columnStyles: {
           0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
@@ -470,7 +470,7 @@ export const IncidentReport: React.FC = () => {
         head: [], // Remove header
         body: respondingRows.length > 0 ? respondingRows : [['', '', '', '']],
         styles: tableConfig.styles,
-        headStyles: { ...tableConfig.headStyles, display: 'none' as any }, // Ensure header is hidden
+        headStyles: tableConfig.headStyles, // Ensure header is hidden (head is empty)
         alternateRowStyles: tableConfig.alternateRowStyles,
         columnStyles: {
           0: { fontStyle: 'bold', textColor: [0, 0, 0], cellWidth: 40 },
