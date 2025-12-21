@@ -984,6 +984,13 @@ function App() {
                   </ProtectedRoute>
                 </MainMaster>
               } />
+              <Route path="/control/emergency-incident-logging/lock-status" element={
+                <MainMaster>
+                  <ProtectedRoute>
+                    <IncidentRecordLockStatus />
+                  </ProtectedRoute>
+                </MainMaster>
+              } />
               <Route path="/control/emergency-incident-logging/record-modification-history" element={
                 <MainMaster>
                   <ProtectedRoute>
@@ -996,16 +1003,6 @@ function App() {
                   <ProtectedRoute>
                     <IncidentRecordModificationHistory />
                   </ProtectedRoute>
-                </MainMaster>
-              } />
-              <Route path="/control/emergency-incident-logging/record-lock-status" element={
-                <MainMaster>
-                  <IncidentRecordLockStatus />
-                </MainMaster>
-              } />
-              <Route path="/control/emergency-incident-logging/lock-status" element={
-                <MainMaster>
-                  <IncidentRecordLockStatus />
                 </MainMaster>
               } />
               <Route path="/control/emergency-incident-logging/incident-report" element={

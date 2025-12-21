@@ -5,7 +5,7 @@ import { usePageImage } from '../../hooks/usePageImage';
 import { supabase } from '../../lib/supabase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { setupVFH_A4_P, cleanupTrailingBlankPages, applyFinalPageNumbers, createStandardizedFooter } from '../../utils/pdfReportHelper';
+import { setupVFH_A4_P, cleanupTrailingBlankPages, applyFinalPageNumbers, createStandardizedFooter, addStandardizedHeader, addStandardizedLogo } from '../../utils/pdfReportHelper';
 import { getCompanyLogo } from '../../utils/companyLogo';
 import { formatDateTime } from '../../lib/utils';
 
@@ -140,7 +140,17 @@ export const IncidentReport: React.FC = () => {
         getList('03_ecc_03_06_Damage_Loss_Reporting_Items'),
         getList('03_ecc_03_07_Equipment_Used'),
         getList('03_ecc_03_09_Incident_Route_Finder'),
-        getSingle('03_ecc_03_10_Weather_Information'),
+        (async () => {
+          // Custom fetch for weather to handle multiple rows (get latest)
+          const { data } = await supabase
+            .from('03_ecc_03_10_Weather_Information')
+            .select('*')
+            .eq('incident_number', inc)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          return data || null;
+        })(),
         getList('03_ecc_03_11_Multi_Media_Files'),
         getSingle('03_ecc_03_13_Record_Lock_Status')
       ]);
@@ -188,7 +198,20 @@ export const IncidentReport: React.FC = () => {
       let callTakerName = s.call_taker_name || s.call_taker_id || '';
       if (callTakerName) {
         try {
-          // Try to fetch profile regardless of format (UUID or otherwise)
+          // If numeric, try fetching from staff registration first
+          if (/^\d+$/.test(String(callTakerName))) {
+             const { data: staff } = await supabase
+              .from('02_admin_staff_1_registration')
+              .select('first_name, middle_name, last_name')
+              .eq('staff_id', callTakerName)
+              .single();
+            if (staff) {
+              const full = [staff.first_name, staff.middle_name, staff.last_name].filter(Boolean).join(' ').trim();
+              if (full) callTakerName = full;
+            }
+          }
+          
+          // Also try to fetch profile regardless of format (UUID or otherwise)
           const { data: profile } = await supabase
             .from('profiles')
             .select('full_name, display_name')
@@ -459,39 +482,83 @@ export const IncidentReport: React.FC = () => {
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
+      // --- INCIDENT NARRATIVE SECTION ---
+      // Fallback to localStorage if DB data is missing
+      const n = narrative || (() => {
+        try {
+          const msgsStr = localStorage.getItem(`vfh_incident_narrative:${inc}`);
+          const oicStr = localStorage.getItem(`vfh_incident_narrative_oic:${inc}`);
+          if (msgsStr || oicStr) {
+            return {
+              messages: msgsStr ? JSON.parse(msgsStr) : [],
+              oic_name: oicStr || ''
+            };
+          }
+        } catch {}
+        return {};
+      })();
+
       doc.addPage();
+      const narrativeBannerY = tableStartY - 6;
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, narrativeBannerY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Incident Narrative', 14, tableStartY - 6);
-      const narrativeMsgs = Array.isArray(narrative?.messages) ? narrative.messages : [];
+      doc.text('Incident Narrative', 14, narrativeBannerY + 5);
+      doc.setTextColor(0, 0, 0);
+
+      const narrativeMsgs = Array.isArray(n?.messages) ? n.messages : [];
       const narrativeRows = narrativeMsgs.map((m: any) => [
         String(m?.time || ''),
-        String(narrative?.oic_name || ''),
+        String(m?.oic || n?.oic_name || ''),
         String(m?.text || '')
       ]);
       autoTable(doc, {
-        startY: tableStartY,
+        startY: narrativeBannerY + 12,
         head: [['Time', 'OIC', 'Message']],
         body: narrativeRows.length > 0 ? narrativeRows : [['', '', '']],
         styles: tableConfig.styles,
         headStyles: tableConfig.headStyles,
         alternateRowStyles: tableConfig.alternateRowStyles,
+        columnStyles: {
+          0: { cellWidth: 25 },
+          1: { cellWidth: 45 }
+        },
         margin: tableConfig.margin,
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
       doc.addPage();
+      const casualtiesBannerY = tableStartY - 6;
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, casualtiesBannerY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Casualties & Fatalities', 14, tableStartY - 6);
+      doc.text('Casualties & Fatalities', 14, casualtiesBannerY + 5);
+      doc.setTextColor(0, 0, 0);
+
       const casualtyEntries = Array.isArray(casualties?.entries) ? casualties.entries : [];
-      const casualtyRows = casualtyEntries.map((c: any) => [
-        String(c?.name || ''),
-        String(c?.age || ''),
-        String(c?.status || ''),
-        String(c?.notes || '')
+      // Fallback to localStorage if DB data is missing
+      let finalCasualtyRows = casualtyEntries;
+      if (finalCasualtyRows.length === 0) {
+        try {
+          const saved = localStorage.getItem(`vfh_casualties:${inc}`);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) finalCasualtyRows = parsed;
+          }
+        } catch {}
+      }
+
+      const casualtyRows = finalCasualtyRows.map((c: any) => [
+        String(c?.type || ''),
+        String(c?.gender || ''),
+        String(c?.ageGroup || ''),
+        String(c?.description || '')
       ]);
       autoTable(doc, {
-        startY: tableStartY,
-        head: [['Name', 'Age', 'Status', 'Notes']],
+        startY: casualtiesBannerY + 12,
+        head: [['Type', 'Gender', 'Age Group', 'Description']],
         body: casualtyRows.length > 0 ? casualtyRows : [['', '', '', '']],
         styles: tableConfig.styles,
         headStyles: tableConfig.headStyles,
@@ -500,20 +567,99 @@ export const IncidentReport: React.FC = () => {
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
-      doc.addPage();
+      // Position Property Information at middle of page if space permits
+      const lastY = (doc as any).lastAutoTable.finalY + 20;
+      let propertyBannerY = lastY < pageHeight / 2 ? pageHeight / 2 : lastY;
+      
+      // Ensure we don't overflow
+      if (propertyBannerY + 60 > pageHeight) {
+        doc.addPage();
+        propertyBannerY = tableStartY - 6;
+      }
+
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, propertyBannerY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Property Information', 14, tableStartY - 6);
+      doc.text('Property Information', 14, propertyBannerY + 5);
+      doc.setTextColor(0, 0, 0);
+
+      // Fallback for Property Info
+      const pInfo = propertyInfo || (() => {
+        try {
+          const saved = localStorage.getItem(`vfh_property_info:${inc}`);
+          if (saved) {
+            const p = JSON.parse(saved);
+            return {
+              owner_name: p.ownerName,
+              owner_contact: p.ownerContact,
+              occupant_name: p.occupantName,
+              occupant_contact: p.occupantContact,
+              legal_description: p.legalDescription,
+              property_type: p.propertyType
+            };
+          }
+        } catch {}
+        return {};
+      })();
+
+      // Fallback for Property Items
+      let pItems = propertyItems;
+      if (!pItems || pItems.length === 0) {
+        try {
+          const savedList = localStorage.getItem(`vfh_property_info_list:${inc}`);
+          if (savedList) {
+            const parsed = JSON.parse(savedList);
+            if (Array.isArray(parsed)) {
+              pItems = parsed.map((p: any) => ({
+                owner_name: p.ownerName,
+                owner_contact: p.ownerContact,
+                occupant_name: p.occupantName,
+                occupant_contact: p.occupantContact,
+                legal_description: p.legalDescription,
+                property_type: p.propertyType
+              }));
+            }
+          }
+        } catch {}
+      }
+      if (!Array.isArray(pItems)) pItems = [];
+
+      const parentRow = [
+        String(pInfo?.owner_name || ''),
+        String(pInfo?.owner_contact || ''),
+        String(pInfo?.occupant_name || ''),
+        String(pInfo?.occupant_contact || ''),
+        String(pInfo?.legal_description || ''),
+        String(pInfo?.property_type || '')
+      ];
+
+      const hasParentData = parentRow.some(cell => cell.trim() !== '');
+
+      const itemRows = pItems.map((p: any) => [
+        String(p?.owner_name || ''),
+        String(p?.owner_contact || ''),
+        String(p?.occupant_name || ''),
+        String(p?.occupant_contact || ''),
+        String(p?.legal_description || ''),
+        String(p?.property_type || '')
+      ]);
+
+      let finalPropertyBody = [];
+      if (hasParentData) {
+        finalPropertyBody.push(parentRow);
+      }
+      finalPropertyBody = [...finalPropertyBody, ...itemRows];
+
+      // If absolutely no data, show one empty row
+      if (finalPropertyBody.length === 0) {
+        finalPropertyBody.push(['', '', '', '', '', '']);
+      }
+
       autoTable(doc, {
-        startY: tableStartY,
+        startY: propertyBannerY + 12,
         head: [['Owner', 'Contact', 'Occupant', 'Contact', 'Legal', 'Type']],
-        body: [[
-          String(propertyInfo?.owner_name || ''),
-          String(propertyInfo?.owner_contact || ''),
-          String(propertyInfo?.occupant_name || ''),
-          String(propertyInfo?.occupant_contact || ''),
-          String(propertyInfo?.legal_description || ''),
-          String(propertyInfo?.property_type || '')
-        ]],
+        body: finalPropertyBody,
         styles: tableConfig.styles,
         headStyles: tableConfig.headStyles,
         alternateRowStyles: tableConfig.alternateRowStyles,
@@ -521,37 +667,70 @@ export const IncidentReport: React.FC = () => {
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
-      const propertyRows = propertyItems.map((p: any) => [
-        String(p?.address || ''),
-        String(p?.notes || ''),
-        String(p?.status || '')
-      ]);
-      if (propertyRows.length > 0) {
-        autoTable(doc, {
-          startY: (doc as any).lastAutoTable.finalY + 6,
-          head: [['Address', 'Notes', 'Status']],
-          body: propertyRows,
-          styles: tableConfig.styles,
-          headStyles: tableConfig.headStyles,
-          alternateRowStyles: tableConfig.alternateRowStyles,
-          margin: tableConfig.margin,
-          tableWidth: tableConfig.tableWidth,
-          didDrawPage: tableConfig.didDrawPage
-        });
-      }
       doc.addPage();
+      const damageBannerY = tableStartY - 6;
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, damageBannerY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Damage / Loss Reporting', 14, tableStartY - 6);
-      const damageRows = damageLossItems.map((d: any) => [
+      doc.text('Damage / Loss Reporting', 14, damageBannerY + 5);
+      doc.setTextColor(0, 0, 0);
+
+      // Fallback for Damage Loss
+      let dItems = damageLossItems;
+      if (!dItems || dItems.length === 0) {
+        try {
+          // Check for main record
+          const savedMain = localStorage.getItem(`vfh_damage_loss:${inc}`);
+          let mainItem = null;
+          if (savedMain) {
+             const p = JSON.parse(savedMain);
+             if (p.structureLoss || p.contentsLoss || p.otherLoss || p.salvageValue || p.possibleCause || p.areaOfOrigin) {
+               mainItem = {
+                 structure_loss: p.structureLoss,
+                 contents_loss: p.contentsLoss,
+                 other_loss: p.otherLoss,
+                 salvage_value: p.salvageValue,
+                 possible_cause: p.possibleCause,
+                 area_of_origin: p.areaOfOrigin
+               };
+             }
+          }
+
+          // Check for list records
+          const savedList = localStorage.getItem(`vfh_damage_loss_list:${inc}`);
+          let listItems: any[] = [];
+          if (savedList) {
+            const parsed = JSON.parse(savedList);
+            if (Array.isArray(parsed)) {
+              listItems = parsed.map((p: any) => ({
+                structure_loss: p.structureLoss,
+                contents_loss: p.contentsLoss,
+                other_loss: p.otherLoss,
+                salvage_value: p.salvageValue,
+                possible_cause: p.possibleCause,
+                area_of_origin: p.areaOfOrigin
+              }));
+            }
+          }
+          
+          dItems = [];
+          if (mainItem) dItems.push(mainItem);
+          if (listItems.length > 0) dItems = [...dItems, ...listItems];
+        } catch {}
+      }
+
+      const damageRows = Array.isArray(dItems) ? dItems.map((d: any) => [
         String(d?.structure_loss ?? ''),
         String(d?.contents_loss ?? ''),
         String(d?.other_loss ?? ''),
         String(d?.salvage_value ?? ''),
         String(d?.possible_cause || ''),
         String(d?.area_of_origin || '')
-      ]);
+      ]) : [];
+
       autoTable(doc, {
-        startY: tableStartY,
+        startY: damageBannerY + 12,
         head: [['Structure', 'Contents', 'Other', 'Salvage', 'Cause', 'Origin']],
         body: damageRows.length > 0 ? damageRows : [['', '', '', '', '', '']],
         styles: tableConfig.styles,
@@ -561,18 +740,64 @@ export const IncidentReport: React.FC = () => {
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
-      doc.addPage();
+
+      // Position Equipment Used at middle of page if possible
+      const lastDamageY = (doc as any).lastAutoTable.finalY + 20;
+      let equipmentBannerY = lastDamageY < pageHeight / 2 ? pageHeight / 2 : lastDamageY;
+      
+      if (equipmentBannerY + 60 > pageHeight) {
+        doc.addPage();
+        equipmentBannerY = tableStartY - 6;
+      }
+
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, equipmentBannerY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Equipment Used', 14, tableStartY - 6);
-      const equipmentRows = equipmentUsed.map((e: any) => [
-        String(e?.equipment_name || ''),
-        String(e?.quantity || ''),
-        String(e?.notes || '')
-      ]);
+      doc.text('Equipment Used', 14, equipmentBannerY + 5);
+      doc.setTextColor(0, 0, 0);
+
+      // Fallback for Equipment Used
+      let eItems = equipmentUsed;
+      if (!eItems || eItems.length === 0) {
+        try {
+          const saved = localStorage.getItem(`vfh_equipment_used:${inc}`);
+          if (saved) {
+             const p = JSON.parse(saved);
+             if (p.items && Array.isArray(p.items)) {
+               eItems = p.items.map((it: any) => ({
+                 item_name: it.name,
+                 quantity: it.quantity,
+                 time_used: it.timeUsed,
+                 per_unit_rate: it.perUnitRate,
+                 cost_of_use: it.costOfUse
+               }));
+             }
+          }
+        } catch {}
+      }
+
+      let totalCost = 0;
+      const equipmentRows = Array.isArray(eItems) ? eItems.map((e: any) => {
+        // Handle both DB field names and fallback names
+        const name = e?.item_name || e?.equipment_name || '';
+        const qty = e?.quantity || '';
+        const timeUsed = e?.time_used || '';
+        const rate = e?.per_unit_rate || '';
+        const costVal = parseFloat(e?.cost_of_use || '0');
+        if (!isNaN(costVal)) totalCost += costVal;
+        const cost = e?.cost_of_use || '';
+        return [String(name), String(qty), String(timeUsed), String(rate), String(cost)];
+      }) : [];
+
+      if (equipmentRows.length > 0) {
+        equipmentRows.push(['', '', '', 'Total Cost', totalCost.toFixed(2)]);
+      }
+
       autoTable(doc, {
-        startY: tableStartY,
-        head: [['Equipment', 'Quantity', 'Notes']],
-        body: equipmentRows.length > 0 ? equipmentRows : [['', '', '']],
+        startY: equipmentBannerY + 12,
+        head: [['Name', 'Quantity', 'Time Used', 'Per Unit Rate', 'Cost of Use']],
+        body: equipmentRows.length > 0 ? equipmentRows : [['', '', '', '', '']],
         styles: tableConfig.styles,
         headStyles: tableConfig.headStyles,
         alternateRowStyles: tableConfig.alternateRowStyles,
@@ -581,16 +806,43 @@ export const IncidentReport: React.FC = () => {
         didDrawPage: tableConfig.didDrawPage
       });
       doc.addPage();
+      const routeBannerY = tableStartY - 6;
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, routeBannerY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Incident Route Finder', 14, tableStartY - 6);
-      const routeRows = routeFinder.map((r: any) => [
+      doc.text('Incident Route Finder', 14, routeBannerY + 5);
+      doc.setTextColor(0, 0, 0);
+
+      // Fallback for Route Finder
+      let rItems = routeFinder;
+      if (!rItems || rItems.length === 0) {
+          try {
+              const saved = localStorage.getItem(`vfh_route_directions_${inc}`);
+              if (saved) {
+                  const p = JSON.parse(saved);
+                  // transform to match DB structure
+                  rItems = [{
+                      address_from: p.fromAddress,
+                      address_to: p.toAddress,
+                      route_distance: p.routeSummary?.distance,
+                      route_duration: p.routeSummary?.duration,
+                      directions: p.directions
+                  }];
+              }
+          } catch {}
+      }
+      if (!Array.isArray(rItems)) rItems = [];
+
+      const routeRows = rItems.map((r: any) => [
         String(r?.address_from || ''),
         String(r?.address_to || ''),
         String(r?.route_distance || ''),
         String(r?.route_duration || '')
       ]);
+
       autoTable(doc, {
-        startY: tableStartY,
+        startY: routeBannerY + 12,
         head: [['From', 'To', 'Distance', 'Duration']],
         body: routeRows.length > 0 ? routeRows : [['', '', '', '']],
         styles: tableConfig.styles,
@@ -600,37 +852,124 @@ export const IncidentReport: React.FC = () => {
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
+
+      // Add Turn-by-Turn Directions
+      let lastRouteY = (doc as any).lastAutoTable.finalY + 10;
+      
+      rItems.forEach((route: any, index: number) => {
+         let steps: any[] = [];
+         // Parse directions if it's a string (JSON), otherwise use as is
+         if (typeof route.directions === 'string') {
+             try { steps = JSON.parse(route.directions); } catch {}
+         } else if (Array.isArray(route.directions)) {
+             steps = route.directions;
+         }
+
+         if (steps.length > 0) {
+             if (lastRouteY + 20 > pageHeight) {
+                 doc.addPage();
+                 lastRouteY = tableStartY;
+             }
+             
+             const stepRows = steps.map((s: any) => [
+                 s.text || '',
+                 s.distance || '',
+                 s.duration || ''
+             ]);
+
+             autoTable(doc, {
+                 startY: lastRouteY,
+                 head: [['Instruction', 'Distance', 'Duration']],
+                 body: stepRows,
+                 styles: tableConfig.styles,
+                 headStyles: { ...tableConfig.headStyles, fillColor: [100, 100, 100] },
+                 alternateRowStyles: tableConfig.alternateRowStyles,
+                 margin: tableConfig.margin,
+                 tableWidth: tableConfig.tableWidth,
+                 didDrawPage: tableConfig.didDrawPage
+             });
+             
+             lastRouteY = (doc as any).lastAutoTable.finalY + 10;
+         }
+      });
+      // ----------------------------------------------------------------------
+      // NEW PAGE: Weather, Multi-Media, Lock Status (Stacked)
+      // ----------------------------------------------------------------------
       doc.addPage();
+      let currentY = tableStartY - 6;
+
+      // --- 1. Weather Information ---
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, currentY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Weather Information', 14, tableStartY - 6);
+      doc.text('Weather Information', 14, currentY + 5);
+      doc.setTextColor(0, 0, 0);
+
+      // Extract Weather Data
+      const getVal = (val: any) => (val === null || val === undefined) ? '' : String(val);
+
+      const wTemp = getVal(weatherInfo?.temperature) || 
+                    (weatherInfo?.weather_jsonb?.extracted?.temperature ? `${weatherInfo.weather_jsonb.extracted.temperature}°C` : '') || 
+                    (weatherInfo?.weather_jsonb?.temperature_c ? `${weatherInfo.weather_jsonb.temperature_c}°C` : '') || '';
+      
+      const wRisk = getVal(weatherInfo?.fire_risk_index) || 
+                    getVal(weatherInfo?.weather_jsonb?.extracted?.fire_risk_index) || 
+                    getVal(weatherInfo?.weather_jsonb?.fire_risk_level) || '';
+      
+      const wAir = getVal(weatherInfo?.air_quality_index) || 
+                   getVal(weatherInfo?.weather_jsonb?.extracted?.air_quality_index) || 
+                   (weatherInfo?.weather_jsonb?.wind_speed ? `Wind: ${weatherInfo.weather_jsonb.wind_speed}` : '') || '';
+      
+      const wPollutants = getVal(weatherInfo?.pollutants_forecast) || 
+                          getVal(weatherInfo?.weather_jsonb?.extracted?.pollutants) || '';
+
+      const weatherRows = [
+          [wTemp, wRisk, wAir, wPollutants]
+      ];
+
       autoTable(doc, {
-        startY: tableStartY,
-        head: [['Temperature', 'Wind', 'Humidity', 'Conditions']],
-        body: [[
-          String(weatherInfo?.temperature || ''),
-          String(weatherInfo?.wind_speed || ''),
-          String(weatherInfo?.humidity || ''),
-          String(weatherInfo?.conditions || '')
-        ]],
+        startY: currentY + 12,
+        head: [['Temperature', 'Fire Risk', 'Air Quality', 'Pollutants']],
+        body: weatherRows,
         styles: tableConfig.styles,
         headStyles: tableConfig.headStyles,
         alternateRowStyles: tableConfig.alternateRowStyles,
+        columnStyles: {
+          0: { cellWidth: 'auto' },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 'auto' },
+          3: { cellWidth: 'auto' }
+        },
         margin: tableConfig.margin,
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
-      doc.addPage();
+
+      currentY = (doc as any).lastAutoTable.finalY + 20;
+
+      // --- 2. Multi-Media Files ---
+      if (currentY + 60 > pageHeight) {
+        doc.addPage();
+        currentY = tableStartY - 6;
+      }
+
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, currentY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Multi-Media Files', 14, tableStartY - 6);
+      doc.text('Multi-Media Files', 14, currentY + 5);
+      doc.setTextColor(0, 0, 0);
+
       const mediaRows = mediaFiles.map((m: any) => [
         String(m?.file_name || ''),
-        String(m?.file_type || ''),
-        String(m?.uploaded_at || '')
+        String(m?.uploaded_at ? new Date(m.uploaded_at).toLocaleString() : '')
       ]);
+      
       autoTable(doc, {
-        startY: tableStartY,
-        head: [['File Name', 'Type', 'Uploaded']],
-        body: mediaRows.length > 0 ? mediaRows : [['', '', '']],
+        startY: currentY + 12,
+        head: [['File Name', 'Uploaded At']],
+        body: mediaRows.length > 0 ? mediaRows : [['No files found', '']],
         styles: tableConfig.styles,
         headStyles: tableConfig.headStyles,
         alternateRowStyles: tableConfig.alternateRowStyles,
@@ -638,20 +977,55 @@ export const IncidentReport: React.FC = () => {
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
-      doc.addPage();
+
+      currentY = (doc as any).lastAutoTable.finalY + 20;
+
+      // --- 3. Record Lock Status ---
+      if (currentY + 60 > pageHeight) {
+        doc.addPage();
+        currentY = tableStartY - 6;
+      }
+
+      doc.setFillColor(17, 119, 187);
+      doc.rect(5, currentY, pageWidth - 10, 8, 'F');
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('Record Lock Status', 14, tableStartY - 6);
+      doc.text('Record Lock Status', 14, currentY + 5);
+      doc.setTextColor(0, 0, 0);
+
+      // Helper to merge DB data with local storage fallback
+      const getLockField = (field: keyof any, localField: string) => {
+         // 1. Try DB
+         if (lockStatus && (lockStatus as any)[field]) return (lockStatus as any)[field];
+         
+         // 2. Try Local Storage
+         try {
+           const local = localStorage.getItem(`vfh_lock_status_${inc}`);
+           if (local) {
+             const p = JSON.parse(local);
+             return p[localField];
+           }
+         } catch {}
+         return null;
+      };
+
+      const dispBy = getLockField('dispatcher_confirmed_by', 'dispatcherBy');
+      const dispAt = getLockField('dispatcher_confirmed_at', 'dispatcherAt');
+      const oicBy = getLockField('oic_confirmed_by', 'oicBy');
+      const oicAt = getLockField('oic_confirmed_at', 'oicAt');
+      const admBy = getLockField('admin_confirmed_by', 'adminBy');
+      const admAt = getLockField('admin_confirmed_at', 'adminAt');
+
+      const lockRows = [
+        ['Dispatcher', String(dispBy || ''), String(dispAt ? new Date(dispAt).toLocaleString() : '')],
+        ['OIC', String(oicBy || ''), String(oicAt ? new Date(oicAt).toLocaleString() : '')],
+        ['Admin', String(admBy || ''), String(admAt ? new Date(admAt).toLocaleString() : '')]
+      ];
+
       autoTable(doc, {
-        startY: tableStartY,
-        head: [['Dispatcher', 'Time', 'OIC', 'Time', 'Admin', 'Time']],
-        body: [[
-          String(lockStatus?.dispatcher_confirmed_by || ''),
-          String(lockStatus?.dispatcher_confirmed_at || ''),
-          String(lockStatus?.oic_confirmed_by || ''),
-          String(lockStatus?.oic_confirmed_at || ''),
-          String(lockStatus?.admin_confirmed_by || ''),
-          String(lockStatus?.admin_confirmed_at || '')
-        ]],
+        startY: currentY + 12,
+        head: [['Role', 'Confirmed By', 'Confirmed At']],
+        body: lockRows,
         styles: tableConfig.styles,
         headStyles: tableConfig.headStyles,
         alternateRowStyles: tableConfig.alternateRowStyles,
@@ -659,13 +1033,31 @@ export const IncidentReport: React.FC = () => {
         tableWidth: tableConfig.tableWidth,
         didDrawPage: tableConfig.didDrawPage
       });
-      cleanupTrailingBlankPages(doc);
+      // cleanupTrailingBlankPages(doc);
       try {
         const total = doc.getNumberOfPages();
         for (let p = 1; p <= total; p++) {
           (doc as any).setPage(p);
           const info = (doc as any).getCurrentPageInfo?.();
           const pageNumber = info?.pageNumber || p;
+          
+          // Ensure header and logo are present on all pages (except page 1 which already has them from setup)
+          if (pageNumber > 1) {
+             if (logoBase64) {
+               addStandardizedLogo({ logoBase64, doc });
+             }
+             addStandardizedHeader({
+               doc,
+               data: {
+                departmentName: 'King Fahd International Airport',
+                departmentType: 'Airport Rescue & Fire Fighting Services',
+                reportTitle: `Incident Report: ${inc}`,
+                summaryText,
+                currentUser
+               }
+             });
+          }
+
           createStandardizedFooter({
             doc,
             data: {

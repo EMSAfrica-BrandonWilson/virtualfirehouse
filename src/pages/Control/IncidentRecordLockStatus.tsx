@@ -33,12 +33,6 @@ const Input = styled.input` width: 100%; padding: 8px; border: 1px solid #ccc; b
 const ConfirmText = styled.span` font-size: 125%; letter-spacing: 1.25px; line-height: 25px; `;
 const SmallInfo = styled.div` font-size: 125%; letter-spacing: 1.25px; line-height: 25px; color: #1177BB; margin-left: 28px; font-weight: 700; `;
 
-const ButtonRow = styled.div`
-  display: flex;
-  gap: 12px;
-  justify-content: flex-start;
-  margin-top: 16px;
-`;
 
 const ActionButton = styled.button`
   padding: 10px 18px;
@@ -116,6 +110,28 @@ const CancelButton = styled.button`
   cursor: pointer;
   font-weight: 700;
   &:hover { background-color: #dee2e6; }
+`;
+
+const TopControlsRow = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 12px;
+`;
+
+const WidgetContainer = styled.div`
+  margin-top: 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  background: #fafafa;
+`;
+
+const ActionRow = styled.div`
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
 `;
 
 export const IncidentRecordLockStatus: React.FC = () => {
@@ -236,11 +252,15 @@ export const IncidentRecordLockStatus: React.FC = () => {
   }, [incidentNumber]);
   const handleSaveRecord = async () => {
     if (saving) return;
+    if (!incidentNumber) {
+      setSaveError('No incident number found. Cannot save.');
+      return;
+    }
     setSaving(true);
     setSaveError('');
     try {
       const payload = {
-        incident_number: incidentNumber || null,
+        incident_number: incidentNumber,
         dispatcher_confirmed: dispatcherDisabled,
         dispatcher_confirmed_by: dispatcherBy || null,
         dispatcher_confirmed_at: dispatcherAt || null,
@@ -262,6 +282,7 @@ export const IncidentRecordLockStatus: React.FC = () => {
       }
       navigate('/control/emergency-incident-logging/report');
     } catch (e: any) {
+      console.error('Save error:', e);
       setSaveError(e?.message || 'Failed to save record lock status');
     } finally {
       setSaving(false);
@@ -278,6 +299,11 @@ export const IncidentRecordLockStatus: React.FC = () => {
               <Paragraph>
                 This page completes the incident record through three confirmations. The Dispatcher marks the incident as complete, the Officer In Charge confirms it is ready for reconciliation, and the Admin verifies reconciliation and archival. When all confirmations are captured, use the Save action to continue to the Incident Report for final review.
               </Paragraph>
+              {saveError && (
+                <div style={{ color: 'red', marginBottom: '10px', fontWeight: 'bold' }}>
+                  Error: {saveError}
+                </div>
+              )}
             </Column>
             <ImageColumn>
               {imageLoading ? (
@@ -289,12 +315,13 @@ export const IncidentRecordLockStatus: React.FC = () => {
               )}
             </ImageColumn>
           </FlexRow>
-          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+          <TopControlsRow>
             <Input type="text" value={incidentNumber} readOnly placeholder="yyyy-mm-dd hh:mm 00001" style={{ width: '24ch', fontWeight: 'bold', color: '#dc3545' }} />
-          </div>
-          <div style={{ marginTop: '16px' }}>
-            <div role="group" aria-label="Record lock confirmations" style={{ display: 'grid', gap: '10px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          </TopControlsRow>
+
+          <WidgetContainer>
+            <div role="group" aria-label="Record lock confirmations" style={{ display: 'grid', gap: '16px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <input
                   type="checkbox"
                   checked={dispatcherConfirm}
@@ -309,6 +336,7 @@ export const IncidentRecordLockStatus: React.FC = () => {
                     }
                   }}
                   disabled={dispatcherDisabled}
+                  style={{ width: '20px', height: '20px' }}
                 />
                 <ConfirmText>Dispatcher confirm the incident is complete and ready to be finilished by the Officer In Charge:</ConfirmText>
               </label>
@@ -317,7 +345,9 @@ export const IncidentRecordLockStatus: React.FC = () => {
                   <strong>{dispatcherMeta}</strong>
                 </SmallInfo>
               )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Divider style={{ margin: '10px 0', borderColor: '#eee', borderWidth: '1px' }} />
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                  <input
                    type="checkbox"
                    checked={oicConfirm}
@@ -332,6 +362,7 @@ export const IncidentRecordLockStatus: React.FC = () => {
                      }
                    }}
                    disabled={oicDisabled}
+                   style={{ width: '20px', height: '20px' }}
                  />
                  <ConfirmText>Officer In Charge confirm that the incident is complete and ready for reconciling:</ConfirmText>
                </label>
@@ -340,7 +371,9 @@ export const IncidentRecordLockStatus: React.FC = () => {
                   <strong>{oicMeta}</strong>
                 </SmallInfo>
               )}
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Divider style={{ margin: '10px 0', borderColor: '#eee', borderWidth: '1px' }} />
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                  <input
                    type="checkbox"
                    checked={adminConfirm}
@@ -355,6 +388,7 @@ export const IncidentRecordLockStatus: React.FC = () => {
                      }
                    }}
                    disabled={adminDisabled}
+                   style={{ width: '20px', height: '20px' }}
                  />
                  <ConfirmText>Administrative Assistant/Officer confirm that the incident has been reconcilled and is now archived.</ConfirmText>
                </label>
@@ -364,17 +398,19 @@ export const IncidentRecordLockStatus: React.FC = () => {
                 </SmallInfo>
               )}
             </div>
-          </div>
+          </WidgetContainer>
+
+          <ActionRow>
+            <ActionButton
+              onClick={handleSaveRecord}
+              disabled={saveDisabled}
+            >
+              Save & Continue to the Incident Report
+            </ActionButton>
+          </ActionRow>
+          
         </div>
       </Section>
-      <ButtonRow>
-        <ActionButton
-          onClick={handleSaveRecord}
-          disabled={saveDisabled}
-        >
-          Save & Continue to the Incident Report
-          </ActionButton>
-        </ButtonRow>
       <ConfirmModalOverlay $open={showDispatcherConfirm}>
         <ConfirmModalBox>
           <ConfirmModalTitle>Confirm Incident Completion</ConfirmModalTitle>
@@ -393,7 +429,7 @@ export const IncidentRecordLockStatus: React.FC = () => {
             </CancelButton>
             <ConfirmButton
               onClick={() => {
-                setDispatcherMeta('Incident completion confirmed by Brandon Wilson on Dec 15, 2025, 10:27 PM');
+                setDispatcherMeta(`Incident completion confirmed by ${getDisplayName()} on ${formatDateTimeReadable(new Date())}`);
                 setDispatcherBy(getDisplayName());
                 setDispatcherAt(new Date().toISOString());
                 setDispatcherDisabled(true);
